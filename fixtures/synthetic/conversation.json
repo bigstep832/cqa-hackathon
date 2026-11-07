@@ -1,0 +1,78 @@
+{
+  "id": "synthetic-conversation-v1",
+  "conversation_id": "synthetic-example-001",
+  "source": "synthetic",
+  "dataset_group_id": "SYNTHETIC",
+  "language": "RU",
+  "channel": "agent chat",
+  "content_hash": "0bc5bca90075aca9215213b4621cabf77eb693df7ac98bc441ba4560210fa093",
+  "imported_at": "2026-11-07T00:00:00Z",
+  "synthetic": true,
+  "audio_url": null,
+  "messages": [
+    {
+      "message_id": "m1",
+      "speaker": "client",
+      "text": "Как скачать отчёт в учебном кабинете? И можно ли выбрать язык отчёта?",
+      "timestamp_raw": "00:00",
+      "order": 0,
+      "audio_offset_seconds": null
+    },
+    {
+      "message_id": "m2",
+      "speaker": "bot",
+      "text": "Подключаю сотрудника учебной поддержки.",
+      "timestamp_raw": "00:03",
+      "order": 1,
+      "audio_offset_seconds": null
+    },
+    {
+      "message_id": "m3",
+      "speaker": "operator",
+      "text": "Здравствуйте! Меня зовут Дана. Откройте раздел «Документы» в учебном кабинете.",
+      "timestamp_raw": "00:12",
+      "order": 2,
+      "audio_offset_seconds": null
+    },
+    {
+      "message_id": "m4",
+      "speaker": "operator",
+      "text": "Выберите вкладку «Создать отчёт», затем скачайте файл.",
+      "timestamp_raw": "00:18",
+      "order": 3,
+      "audio_offset_seconds": null
+    },
+    {
+      "message_id": "m5",
+      "speaker": "operator",
+      "text": "Уточню: «Создать отчёт» — это кнопка, а не вкладка. После её нажатия появится кнопка скачивания.",
+      "timestamp_raw": "00:23",
+      "order": 4,
+      "audio_offset_seconds": null
+    },
+    {
+      "message_id": "m6",
+      "speaker": "client",
+      "text": "Отчёт скачался, спасибо.",
+      "timestamp_raw": "00:36",
+      "order": 5,
+      "audio_offset_seconds": null
+    },
+    {
+      "message_id": "m7",
+      "speaker": "operator",
+      "text": "Рада помочь. Если появятся другие вопросы, обращайтесь. До свидания!",
+      "timestamp_raw": "00:42",
+      "order": 6,
+      "audio_offset_seconds": null
+    },
+    {
+      "message_id": "m8",
+      "speaker": "system",
+      "text": "Оператор завершил учебный чат.",
+      "timestamp_raw": "00:45",
+      "order": 7,
+      "audio_offset_seconds": null
+    }
+  ]
+}

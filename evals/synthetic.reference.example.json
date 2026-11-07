@@ -1,0 +1,70 @@
+[
+  {
+    "conversation_version_id": "synthetic-conversation-v1",
+    "checklist_version_id": "checklist-default-v1",
+    "language": "RU",
+    "channel": "agent chat",
+    "origin": "team_manual",
+    "split": "tune",
+    "scenario_group": "synthetic-example",
+    "answers": [
+      {
+        "criterion_id": "C01",
+        "answer": {
+          "type": "boolean",
+          "value": true
+        }
+      },
+      {
+        "criterion_id": "C02",
+        "answer": {
+          "type": "na",
+          "reason": "Клиент сразу назвал учебный кабинет и конкретное действие; данных для инструкции достаточно."
+        }
+      },
+      {
+        "criterion_id": "C03",
+        "answer": {
+          "type": "na",
+          "reason": "Дана общая инструкция по учебному интерфейсу без раскрытия личных данных и защищённых действий."
+        }
+      },
+      {
+        "criterion_id": "C04",
+        "answer": {
+          "type": "scale",
+          "value": 15
+        }
+      },
+      {
+        "criterion_id": "C05",
+        "answer": {
+          "type": "boolean",
+          "value": true
+        }
+      },
+      {
+        "criterion_id": "C06",
+        "answer": {
+          "type": "scale",
+          "value": 7
+        }
+      },
+      {
+        "criterion_id": "C07",
+        "answer": {
+          "type": "boolean",
+          "value": true
+        }
+      },
+      {
+        "criterion_id": "C08",
+        "answer": {
+          "type": "boolean",
+          "value": false
+        }
+      }
+    ],
+    "total": "85.38"
+  }
+]
