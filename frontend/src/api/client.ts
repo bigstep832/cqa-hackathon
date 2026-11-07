@@ -7,6 +7,8 @@ export type ImportResponse = components['schemas']['ImportResponse'];
 export type ConversationQuery = NonNullable<paths['/api/v1/conversations']['get']['parameters']['query']>;
 export type ChecklistList = components['schemas']['ChecklistList'];
 export type ChecklistVersion = components['schemas']['ChecklistVersion'];
+export type ChecklistCreateRequest = components['schemas']['ChecklistCreateRequest'];
+export type ChecklistVersionCreateRequest = components['schemas']['ChecklistVersionCreateRequest'];
 export type Evaluation = components['schemas']['Evaluation'];
 export type EvaluationRequest = components['schemas']['EvaluationCreateRequest'];
 type ErrorField = components['schemas']['ErrorField'];
@@ -71,6 +73,16 @@ export function createApiClient(transport: Transport = (url, init) => fetch(url,
     },
     getChecklistVersion(id: string, signal?: AbortSignal) {
       return request<ChecklistVersion>(`/api/v1/checklist-versions/${encodeURIComponent(id)}`, { signal });
+    },
+    createChecklist(body: ChecklistCreateRequest, signal?: AbortSignal) {
+      return request<ChecklistVersion>('/api/v1/checklists', {
+        method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+    },
+    createChecklistVersion(checklistId: string, body: ChecklistVersionCreateRequest, signal?: AbortSignal) {
+      return request<ChecklistVersion>(`/api/v1/checklists/${encodeURIComponent(checklistId)}/versions`, {
+        method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
     },
     createEvaluation(body: EvaluationRequest, idempotencyKey: string, signal?: AbortSignal) {
       return request<Evaluation>('/api/v1/evaluations', {

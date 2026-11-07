@@ -3,6 +3,7 @@ import { fetchDemo, type DemoPayload } from './api/demo';
 import { ReviewWorkspace } from './ReviewWorkspace';
 import { ConversationsScreen } from './ConversationsScreen';
 import { EvaluationWorkspace } from './EvaluationWorkspace';
+import { ChecklistsScreen } from './checklists/ChecklistsScreen';
 
 type LoadState =
   | { status: 'loading' }
@@ -18,7 +19,7 @@ function Mark({ small = false }: { small?: boolean }) {
 }
 
 export function App() {
-  const [view, setView] = useState<'conversations' | 'demo'>('conversations');
+  const [view, setView] = useState<'conversations' | 'checklists' | 'demo'>('conversations');
   return <div className="app-shell">
     <a className="skip-link" href="#main">Перейти к содержимому</a>
     <aside className="sidebar" aria-label="Разделы CQA">
@@ -26,14 +27,15 @@ export function App() {
       <nav className="sidebar-section" aria-label="Рабочее пространство">
         <span className="sidebar-label">Рабочее пространство</span>
         <button className={`nav-link${view === 'conversations' ? ' nav-link--active' : ''}`} aria-pressed={view === 'conversations'} onClick={() => setView('conversations')}>Диалоги</button>
+        <button className={`nav-link${view === 'checklists' ? ' nav-link--active' : ''}`} aria-pressed={view === 'checklists'} onClick={() => setView('checklists')}>Чек-листы</button>
         <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}>Демо · mock</button>
       </nav>
       <div className="sidebar-bottom"><p>DT20 · CQA</p><span className="muted">Диалоги и версии из серверного хранилища.</span></div>
     </aside>
     <main id="main" className="main" tabIndex={-1}>
-      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : 'Диалоги'}</p>
-        <h1>{view === 'demo' ? 'Проверка диалога' : 'Диалоги'}</h1></div></header>
-      {view === 'demo' ? <DemoScreen /> : <ConversationsScreen />}
+      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : view === 'checklists' ? 'Чек-листы' : 'Диалоги'}</p>
+        <h1>{view === 'demo' ? 'Проверка диалога' : view === 'checklists' ? 'Чек-листы' : 'Диалоги'}</h1></div></header>
+      {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : <ConversationsScreen />}
       <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
     </main>
   </div>;

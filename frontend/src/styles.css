@@ -1,5 +1,56 @@
 @import url('./tokens.css');
 
+.checklist-toolbar, .editor-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.checklist-toolbar .primary-button, .editor-actions .primary-button { margin-top: 0; }
+.checklist-grid { display: grid; grid-template-columns: minmax(240px, .65fr) minmax(0, 1.35fr); gap: 22px; align-items: start; }
+.checklist-catalog { display: grid; gap: 16px; min-width: 0; }
+.checklist-notice { background: var(--green-soft); color: var(--green); padding: 14px 18px; border-radius: 6px; margin-bottom: 18px; }
+.version-lookup, .visited-versions, .checklist-detail, .checklist-editor { padding: 22px; overflow-wrap: anywhere; }
+.version-lookup { display: grid; gap: 10px; }
+.version-lookup input, .checklist-editor input:not([type="checkbox"]) { min-width: 0; width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: var(--surface); min-height: 44px; }
+.visited-versions ul, .validation-summary ul { padding-left: 20px; margin-bottom: 0; }
+.visited-versions .text-link, .validation-summary .text-link { border: 0; background: transparent; text-align: left; padding: 8px 0; text-decoration: underline; overflow-wrap: anywhere; }
+.checklist-detail > p, .checklist-editor > p { margin-top: 10px; font-size: 13px; }
+.checklist-section { margin-top: 26px; }
+.checklist-section > h3 { color: var(--green); border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.criterion-snapshot { padding: 18px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.criterion-snapshot h4 { font-size: 14px; margin: 0 0 8px; }
+.criterion-snapshot > p { margin-top: 8px; }
+.criterion-meta { color: var(--muted); }
+.snapshot-options { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 8px; }
+.snapshot-options li { border: 1px solid var(--line); border-radius: 5px; background: var(--canvas); padding: 12px; }
+.snapshot-options p { margin-top: 5px; }
+.preserve-lines { white-space: pre-wrap; }
+.editor-fields { min-width: 0; padding: 0; margin: 20px 0; border: 0; display: grid; gap: 16px; }
+.editor-fields > button { justify-self: start; }
+.editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.editor-field { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.editor-field label { font-size: 13px; font-weight: 600; }
+.editor-field textarea, .editor-field select { width: 100%; min-width: 0; min-height: 44px; }
+.editor-field textarea { resize: vertical; }
+.editor-field [aria-invalid="true"] { border-color: var(--danger); }
+.editor-field input[readonly] { background: var(--canvas); }
+.field-error { color: var(--danger); font-size: 12px; }
+.section-editor { padding: 16px; border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 12px; }
+.section-editor > button { justify-self: start; }
+.criterion-editor { min-width: 0; border: 1px solid var(--line); border-radius: 6px; }
+.criterion-editor summary { cursor: pointer; padding: 16px; background: var(--green-soft); font-weight: 600; }
+.criterion-editor-body { padding: 18px; display: grid; gap: 16px; }
+.criterion-editor-body > button { justify-self: start; }
+.criterion-editor-body > p, .editor-fields > p, .version-lookup p, .visited-versions p { font-size: 13px; }
+.option-editor { margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 5px; min-width: 0; display: grid; gap: 14px; }
+.option-editor legend { font-size: 13px; font-weight: 600; padding: 0 5px; }
+.option-editor > button { justify-self: start; }
+.danger-button { color: var(--danger); }
+.validation-summary { padding: 16px; border: 1px solid var(--danger); border-radius: 5px; margin: 16px 0; color: var(--danger); }
+.editor-actions { margin: 20px 0 0; }
+@media (max-width: 1050px) { .checklist-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 700px) {
+  .editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .checklist-editor, .checklist-detail, .version-lookup, .visited-versions { padding: 16px; }
+  .criterion-editor-body, .section-editor, .option-editor { padding: 12px; }
+}
+
 .evaluation-back { margin-bottom: 20px; }
 .evaluation-form { display: grid; gap: 12px; padding: 24px; margin-top: 20px; }
 .evaluation-form select { width: 100%; min-width: 0; }
