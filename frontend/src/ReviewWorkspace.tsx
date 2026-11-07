@@ -35,6 +35,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
       <div className="dialogue-meta"><span className="tag">{conversation.language}</span><span>{conversation.channel === 'voice call' ? 'Звонок' : 'Чат'}</span><span>{conversation.messages.length} сообщений</span>{conversation.synthetic && <span className="tag tag--green">Синтетический</span>}</div>
     </section>
 
+    <div className="score-overview">
     <section className="summary" aria-label="Исходный результат">
       <div className="score-total">
         <span className="summary-label">Исходный балл</span>
@@ -52,7 +53,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
       <div className="violations-summary">
         <span className="summary-label">Грубые нарушения</span>
         <strong className={score.flags.length ? 'violation-label' : 'clear-label'}>{score.flags.length ? 'Есть нарушение' : 'Не обнаружены'}</strong>
-        <p>Отдельный флаг.<br />Не изменяет общий балл.</p>
+        <p>Отдельный флаг. Не изменяет общий балл.</p>
       </div>
     </section>
 
@@ -60,10 +61,20 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
       <div><span className="summary-label">Эффективный балл</span><strong data-testid="effective-score">{formatDecimal(evaluation.effective_score.total)}</strong><span> / 100</span>
         <p className="muted">Серверный результат с учётом решений по апелляциям.</p>
         {evaluation.effective_score.reason && <p>{evaluation.effective_score.reason}</p>}</div>
-      <div>{evaluation.effective_score.sections.map(section => <p key={section.section_id}>{section.title}: {formatDecimal(section.normalized_points)} / {formatDecimal(section.normalized_maximum)}</p>)}
-        <p>Применимый вес: {formatWeight(evaluation.effective_score.applicable_weight)}.</p>
-        <p>Грубые нарушения: {evaluation.effective_score.flags.length ? 'есть' : 'не обнаружены'}. Флаг не изменяет балл.</p></div>
+      <div className="effective-sections">
+        <p className="summary-label">Вклад секций в эффективный балл</p>
+        {evaluation.effective_score.sections.filter(section => Number(section.applicable_weight) > 0).map(section => <div className="section-score" key={section.section_id}>
+          <span>{section.title}</span><strong>{formatDecimal(section.normalized_points)} <span>/ {formatDecimal(section.normalized_maximum)}</span></strong>
+        </div>)}
+        <p className="section-note">Применимый вес: {formatWeight(evaluation.effective_score.applicable_weight)}.</p>
+      </div>
+      <div className="violations-summary">
+        <span className="summary-label">Грубые нарушения</span>
+        <strong className={evaluation.effective_score.flags.length ? 'violation-label' : 'clear-label'}>{evaluation.effective_score.flags.length ? 'Есть нарушение' : 'Не обнаружены'}</strong>
+        <p>Отдельный флаг. Не изменяет общий балл.</p>
+      </div>
     </section>
+    </div>
     <p className="result-provenance">Ниже — исходные ответы, пояснения и доказательства. Версия чек-листа: {checklist.id}.</p>
     <div className="review-grid">
       <section className="panel transcript-panel" aria-labelledby="transcript-heading">

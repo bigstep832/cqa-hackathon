@@ -12,11 +12,14 @@ export function CriterionFields({ criterion, index, sections, issues, onChange, 
   return <details className="criterion-editor" open={initiallyOpen}>
     <summary>{criterion.id || `Критерий ${index + 1}`} — {criterion.title || 'Новый критерий'}</summary>
     <div className="criterion-editor-body">
+      <fieldset className="criterion-settings"><legend>Основные сведения</legend>
       <div className="editor-grid">
         <EditorField path={`${path}.id`} label="ID критерия" value={criterion.id} issues={issues} onChange={id => update({ id })} />
         <EditorField path={`${path}.title`} label="Название критерия" value={criterion.title} issues={issues} onChange={title => update({ title })} />
       </div>
       <EditorField path={`${path}.description`} label="Описание критерия" value={criterion.description} issues={issues} multiline onChange={description => update({ description })} />
+      </fieldset>
+      <fieldset className="criterion-settings"><legend>Оценивание и секция</legend>
       <div className="editor-grid">
         <EditorSelect path={`${path}.section_id`} label="Секция критерия" value={criterion.section_id} issues={issues} onChange={section_id => update({ section_id })}>
           <option value="">Выберите секцию</option>{sections.map((section, i) => <option key={i} value={section.id}>{section.title || 'Без названия'} · {section.id}</option>)}
@@ -32,9 +35,13 @@ export function CriterionFields({ criterion, index, sections, issues, onChange, 
       <p className="muted">Смена типа ответа заменяет варианты шаблоном выбранного типа. Проверьте значения, описания и quality.</p>
       {typeNotice && <p role="status">Варианты обновлены для типа {criterion.answer_type}. Заполните их описания.</p>}
       {criterion.kind === 'flag' && <p className="muted">Флаг не имеет веса и quality. Отметьте варианты, означающие нарушение.</p>}
+      </fieldset>
+      <fieldset className="criterion-settings"><legend>Применимость · N/A</legend>
+      <p className="muted">N/A исключает вес критерия из оценки. Укажите точное условие применения.</p>
       <label className="checkbox-label"><input type="checkbox" checked={criterion.allow_na} onChange={event => update({ allow_na: event.target.checked, na_condition: event.target.checked ? criterion.na_condition : '' })} />Разрешить N/A</label>
       {criterion.allow_na && <EditorField path={`${path}.na_condition`} label="Условие N/A" value={criterion.na_condition} issues={issues} multiline onChange={na_condition => update({ na_condition })} />}
-      <h3>Варианты ответа</h3>
+      </fieldset>
+      <fieldset className="criterion-settings"><legend>Варианты ответа</legend>
       {criterion.options.map((option, optionIndex) => {
         const optionPath = `${path}.options.${optionIndex}`;
         const change = (patch: Partial<typeof option>) => update({ options: criterion.options.map((item, i) => i === optionIndex ? { ...item, ...patch } : item) });
@@ -51,6 +58,7 @@ export function CriterionFields({ criterion, index, sections, issues, onChange, 
         </fieldset>;
       })}
       {criterion.answer_type !== 'boolean' && <button className="secondary-button" type="button" onClick={() => update({ options: [...criterion.options, { value: '', label: '', description: '', quality: '', flagged: false }] })}>Добавить вариант</button>}
+      </fieldset>
       <button className="secondary-button danger-button" type="button" disabled={!canRemove} onClick={onRemove}>Удалить критерий {criterion.id}</button>
     </div>
   </details>;

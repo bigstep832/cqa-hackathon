@@ -13,6 +13,22 @@ type LoadState =
   | { status: 'empty' }
   | { status: 'ready'; data: DemoPayload };
 
+const viewDescriptions = {
+  conversations: 'Диалоги, транскрипты и оценка качества работы оператора.',
+  checklists: 'Критерии качества и сохранённые версии правил оценки.',
+  appeals: 'Рассмотрение обращений с сохранением исходной оценки и доказательств.',
+  demo: 'Синтетический сценарий для проверки интерфейса без AI-запросов.',
+};
+function NavIcon({ name }: { name: keyof typeof viewDescriptions }) {
+  const paths = {
+    conversations: 'M4 4h16v12H9l-5 4V4Z',
+    checklists: 'M9 6h11M9 12h11M9 18h11M3 5l1 1 2-2M3 11l1 1 2-2M3 17l1 1 2-2',
+    appeals: 'M12 3v18M4 7h16M4 7l-3 6h6L4 7Zm16 0-3 6h6l-3-6ZM7 21h10',
+    demo: 'm8 5 11 7-11 7V5Z',
+  };
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true"><path d={paths[name]} /></svg>;
+}
+
 function Mark({ small = false }: { small?: boolean }) {
   return <svg className={small ? 'brand-mark brand-mark--small' : 'brand-mark'} viewBox="0 0 32 32" aria-hidden="true">
     <path d="M6 5h20v17H14l-8 6V5Z" fill="currentColor" />
@@ -35,19 +51,19 @@ export function App() {
   return <div className="app-shell">
     <a className="skip-link" href="#main">Перейти к содержимому</a>
     <aside className="sidebar" aria-label="Разделы CQA">
-      <a className="brand" href="#main" aria-label="CQA — проверка качества"><Mark /><span>CQA<span className="brand-caption">Качество диалогов</span></span></a>
+      <a className="brand" href="#main" aria-label="CQA — проверка качества"><Mark /><span>CQA<span className="brand-caption">Freedom Broker</span></span></a>
       <nav className="sidebar-section" aria-label="Рабочее пространство">
         <span className="sidebar-label">Рабочее пространство</span>
-        <button className={`nav-link${view === 'conversations' ? ' nav-link--active' : ''}`} aria-pressed={view === 'conversations'} onClick={() => setView('conversations')}>Диалоги</button>
-        <button className={`nav-link${view === 'checklists' ? ' nav-link--active' : ''}`} aria-pressed={view === 'checklists'} onClick={() => setView('checklists')}>Чек-листы</button>
-        <button className={`nav-link${view === 'appeals' ? ' nav-link--active' : ''}`} aria-pressed={view === 'appeals'} onClick={() => setView('appeals')}>Апелляции</button>
-        <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}>Демо · mock</button>
+        <button className={`nav-link${view === 'conversations' ? ' nav-link--active' : ''}`} aria-pressed={view === 'conversations'} onClick={() => setView('conversations')}><NavIcon name="conversations" />Диалоги</button>
+        <button className={`nav-link${view === 'checklists' ? ' nav-link--active' : ''}`} aria-pressed={view === 'checklists'} onClick={() => setView('checklists')}><NavIcon name="checklists" />Чек-листы</button>
+        <button className={`nav-link${view === 'appeals' ? ' nav-link--active' : ''}`} aria-pressed={view === 'appeals'} onClick={() => setView('appeals')}><NavIcon name="appeals" />Апелляции</button>
+        <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}><NavIcon name="demo" />Демо · mock</button>
       </nav>
       <div className="sidebar-bottom"><p>DT20 · CQA</p><span className="muted">Диалоги и версии из серверного хранилища.</span></div>
     </aside>
     <main id="main" className="main" tabIndex={-1}>
       <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : view === 'checklists' ? 'Чек-листы' : view === 'appeals' ? 'Апелляции' : 'Диалоги'}</p>
-        <h1>{view === 'demo' ? 'Проверка диалога' : view === 'checklists' ? 'Чек-листы' : view === 'appeals' ? 'Апелляции' : 'Диалоги'}</h1></div></header>
+        <h1>{view === 'demo' ? 'Проверка диалога' : view === 'checklists' ? 'Чек-листы' : view === 'appeals' ? 'Апелляции' : 'Диалоги'}</h1><p className="page-description">{viewDescriptions[view]}</p></div></header>
       {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : view === 'appeals' ? <AppealsScreen key={appealId} evaluationId={appealId} /> : <ConversationsScreen />}
       <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
     </main>

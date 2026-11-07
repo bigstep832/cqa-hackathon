@@ -58,7 +58,7 @@ export function AppealWorkspace({ initial, reviewer = false }: { initial: Evalua
       return <div className="criterion-appeal" aria-label={`Обращение ${criterionId}`}>
         <p><strong>Исходный ответ:</strong> {answerLabel(original, criterion)}</p>
         {appeal ? <>
-          <p><strong>Апелляция:</strong> {appeal.status === 'open' ? 'Открыта · open' : 'Решена · resolved'}</p>
+          <p><strong>Апелляция:</strong> <span className={`appeal-status appeal-status--${appeal.status}`}>{appeal.status === 'open' ? 'Открыта · open' : 'Решена · resolved'}</span></p>
           <p className="preserve-lines">Комментарий: {appeal.comment}</p>
           {appeal.decision ? <div className="review-decision">
             <p><strong>Решение проверяющего:</strong> {appeal.decision.action === 'confirm' ? 'confirm — исходный ответ подтверждён' : 'override — ответ изменён'}</p>

@@ -36,7 +36,8 @@ export function AppealRequestForm({ evaluationId, criterionId, disabled, onSaved
   }
   return <form className="appeal-form" aria-label={`Апелляция ${criterionId}`} noValidate onSubmit={event => { void submit(event); }} aria-busy={pending}>
     <label htmlFor={`appeal-comment-${criterionId}`}>Комментарий к апелляции {criterionId}</label>
-    <textarea id={`appeal-comment-${criterionId}`} rows={3} required value={comment} disabled={disabled || pending || Boolean(attempt)} onChange={event => setComment(event.target.value)} />
+    <p className="muted" id={`appeal-help-${criterionId}`}>Обязательное поле. Опишите, почему ответ по этому критерию требует пересмотра.</p>
+    <textarea aria-describedby={`appeal-help-${criterionId}`} id={`appeal-comment-${criterionId}`} rows={3} required value={comment} disabled={disabled || pending || Boolean(attempt)} onChange={event => setComment(event.target.value)} />
     {attempt && !pending && <p className="muted">Повтор отправит тот же комментарий. Сервер сохраняет одну апелляцию на критерий.</p>}
     {error != null && <ApiFailure error={error} />}
     <button className="primary-button" disabled={disabled || pending || !comment.trim()}>{pending ? 'Отправляем апелляцию…' : attempt ? 'Повторить апелляцию' : 'Отправить апелляцию'}</button>
@@ -109,7 +110,8 @@ export function DecisionForm({ appeal, criterion, original, evaluation, disabled
       <p className="muted">Варианты из оценённой версии: {evaluation.checklist_version_id}.</p>
     </>}
     <label htmlFor={`decision-reason-${appeal.id}`}>Причина решения {criterion.id}</label>
-    <textarea id={`decision-reason-${appeal.id}`} rows={3} required value={reason} disabled={locked} onChange={event => setReason(event.target.value)} />
+    <p className="muted" id={`decision-help-${appeal.id}`}>Обязательная причина будет сохранена вместе с решением. Исходный ответ останется в истории.</p>
+    <textarea aria-describedby={`decision-help-${appeal.id}`} id={`decision-reason-${appeal.id}`} rows={3} required value={reason} disabled={locked} onChange={event => setReason(event.target.value)} />
     {attempt && !pending && <p className="muted">Повтор использует прежний idempotency_key и те же параметры решения.</p>}
     {error != null && <ApiFailure error={error} />}
     <button className="primary-button" disabled={disabled || pending || !valid}>{pending ? 'Сохраняем решение…' : attempt ? 'Повторить решение' : 'Сохранить решение'}</button>

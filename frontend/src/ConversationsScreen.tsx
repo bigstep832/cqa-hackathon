@@ -77,7 +77,8 @@ function ConversationListPanel({ query, selected, onSelect, retry, onPage }: {
         : <ul className="conversation-items">{state.data.items.map(item => <li key={item.latest_version_id}>
           <button className="conversation-item" aria-pressed={selected === item.latest_version_id}
             onClick={() => onSelect(item.latest_version_id)}>
-            <strong>{item.conversation_id}</strong><span>{item.language} · {item.channel === 'voice call' ? 'Звонок' : 'Чат'} · {item.message_count} сообщений{item.has_audio ? ' · Есть аудио' : ''}</span>
+            <strong>{item.conversation_id}</strong><span className="conversation-meta"><span className="tag">{item.language}</span><span>{item.channel === 'voice call' ? 'Звонок' : 'Чат'}</span><span>{item.message_count} сообщений</span>{item.has_audio && <span>Есть аудио</span>}</span>
+            <span className="version-label">Версия: {item.latest_version_id}</span>
           </button>
         </li>)}</ul>}
       <div className="pagination" aria-label="Страницы диалогов">

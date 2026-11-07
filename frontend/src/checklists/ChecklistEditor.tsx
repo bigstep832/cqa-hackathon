@@ -61,6 +61,7 @@ export function ChecklistEditor({ base, onSaved, onCancel }: {
 
   return <section className="panel checklist-editor" aria-labelledby="editor-heading">
     <h2 id="editor-heading">{base ? 'Новая версия чек-листа' : 'Новый чек-лист'}</h2>
+    {!base && <p className="version-label">После сохранения будет создана первая версия. Следующие изменения сохраняются отдельными версиями.</p>}
     {base && <p className="version-label">Основа: v{base.version} · {base.id}. Сохранённая версия останется неизменной.</p>}
     <p className="muted">Заполните описания критериев и каждого варианта: они входят в инструкции оценщика. Quality задаётся от 0 до 1; итог рассчитывает сервер.</p>
     <form onSubmit={event => { void submit(event); }} noValidate aria-busy={pending}>
