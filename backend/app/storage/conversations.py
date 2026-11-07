@@ -25,6 +25,7 @@ from sqlalchemy import (
     insert,
     select,
 )
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, Engine
 
 from app.api.errors import ApiError
@@ -38,6 +39,7 @@ from app.contracts.models import (
     ImportResponse,
     Language,
     Message,
+    OperatorAssignment,
     SourceConversation,
 )
 from app.domain.snapshots import conversation_content_hash
@@ -45,6 +47,17 @@ from app.evaluation.demo import load_synthetic_input
 from app.storage.database import get_engine, write_transaction
 
 _schema = MetaData()
+_assignments = Table(
+    "operator_assignments",
+    _schema,
+    Column("conversation_id", String, primary_key=True),
+    Column("group_id", String, primary_key=True),
+    Column("source", String, primary_key=True),
+    Column("operator_id", String),
+    Column("outcome", String),
+    Column("duration_seconds", Integer),
+)
+Index("ix_assignment_operator", _assignments.c.operator_id)
 _versions = Table(
     "conversation_versions",
     _schema,
@@ -172,6 +185,21 @@ def import_conversations(
     initialize_conversations()
     with write_transaction() as connection:
         saved = [_save(connection, item) for item in items]
+        for record in request.records:
+            family = dict(
+                conversation_id=record.conversation_id,
+                group_id=request.dataset_group_id,
+                source=source,
+            )
+            if "operator" in record.model_fields_set:
+                _write_assignment(connection, family, record.operator or OperatorAssignment())
+            elif record.channel == "agent chat":
+                # A source correction from voice to chat invalidates call-only facts.
+                connection.execute(
+                    _assignments.update()
+                    .filter_by(**family)
+                    .values(outcome=None, duration_seconds=None)
+                )
         if source == "organizer":
             connection.execute(
                 delete(_members).where(_members.c.group_id == request.dataset_group_id)
@@ -194,6 +222,85 @@ def import_conversations(
         unchanged_count=len(saved) - count,
         conversation_version_ids=tuple(version_id for version_id, _ in saved),
     )
+
+
+def _write_assignment(db: Connection, family: dict[str, str], facts: OperatorAssignment) -> None:
+    values = facts.model_dump()
+    if not any(value is not None for value in values.values()):
+        db.execute(delete(_assignments).filter_by(**family))
+        return
+    statement = sqlite_insert(_assignments).values(**family, **values)
+    db.execute(
+        statement.on_conflict_do_update(
+            index_elements=["conversation_id", "group_id", "source"], set_=values
+        )
+    )
+
+
+def _operator_anchor(db: Connection, version_id: str) -> tuple[dict[str, str], Channel]:
+    row = (
+        db.execute(
+            select(
+                _versions.c.conversation_id,
+                _versions.c.group_id,
+                _versions.c.source,
+                _versions.c.channel,
+            ).where(_versions.c.id == version_id)
+        )
+        .mappings()
+        .first()
+    )
+    if row is None:
+        raise _not_found()
+    return {key: row[key] for key in ("conversation_id", "group_id", "source")}, row["channel"]
+
+
+def get_operator_assignment(version_id: str) -> OperatorAssignment:
+    initialize_conversations()
+    with get_engine().connect() as db:
+        db.exec_driver_sql("BEGIN")
+        family, _ = _operator_anchor(db, version_id)
+        row = (
+            db.execute(
+                select(
+                    _assignments.c.operator_id,
+                    _assignments.c.outcome,
+                    _assignments.c.duration_seconds,
+                ).filter_by(**family)
+            )
+            .mappings()
+            .first()
+        )
+    return OperatorAssignment.model_validate(row) if row is not None else OperatorAssignment()
+
+
+def set_operator_assignment(version_id: str, facts: OperatorAssignment) -> OperatorAssignment:
+    initialize_conversations()
+    with write_transaction() as db:
+        family, channel = _operator_anchor(db, version_id)
+        latest = db.scalar(
+            select(_versions.c.id)
+            .filter_by(**family)
+            .order_by(_versions.c.sequence.desc())
+            .limit(1)
+        )
+        if latest != version_id:
+            raise ApiError(
+                409,
+                ErrorDetail(
+                    code="STALE_VERSION", message="Диалог обновлён. Откройте последнюю версию."
+                ),
+            )
+        if not facts.valid_for(channel):
+            raise ApiError(
+                422,
+                ErrorDetail(
+                    code="CALL_FIELDS_REQUIRE_VOICE",
+                    message="Исход и длительность доступны только для звонка.",
+                ),
+            )
+        _write_assignment(db, family, facts)
+    return facts
 
 
 @lru_cache(maxsize=8)

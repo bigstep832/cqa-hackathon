@@ -35,7 +35,7 @@ class StrictJSONRoute(APIRoute):
         handle = super().get_route_handler()
 
         async def handle_request(request: Request) -> Response:
-            if request.method == "POST":
+            if request.method in {"POST", "PUT"}:
                 request = StrictJSONRequest(request.scope, request.receive)
             return await handle(request)
 
@@ -58,7 +58,7 @@ class RequestBoundary:
                 headers["X-Content-Type-Options"] = "nosniff"
             await send(message)
 
-        if scope["method"] != "POST":
+        if scope["method"] not in {"POST", "PUT"}:
             await self.app(scope, receive, private_response)
             return
 
