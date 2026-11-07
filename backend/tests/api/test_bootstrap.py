@@ -73,7 +73,7 @@ def test_openapi_describes_success_requests_and_consistent_errors(client: TestCl
         for method, operation in path.items()
         if method in {"get", "post"} and "media" not in operation.get("tags", [])
     ]
-    assert len(operations) == 16
+    assert len(operations) == 18
     for operation in operations:
         responses = operation["responses"]
         success = [value for code, value in responses.items() if code.startswith("2")]

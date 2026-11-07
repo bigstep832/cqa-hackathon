@@ -92,6 +92,8 @@ def initialize_workflow() -> None:
             plan_id TEXT, calls TEXT NOT NULL DEFAULT '[]', idempotency_key TEXT UNIQUE,
             original_request TEXT NOT NULL)""")
         db.exec_driver_sql("CREATE INDEX IF NOT EXISTS evaluation_queue ON evaluations(status)")
+        db.exec_driver_sql("""CREATE INDEX IF NOT EXISTS ix_evaluation_conversation_version
+            ON evaluations(json_extract(request,'$.conversation_version_id'))""")
         db.exec_driver_sql("""CREATE TABLE IF NOT EXISTS appeals (
             id TEXT PRIMARY KEY, evaluation_id TEXT NOT NULL REFERENCES evaluations(id),
             criterion_id TEXT NOT NULL, snapshot TEXT NOT NULL, UNIQUE(evaluation_id, criterion_id))""")

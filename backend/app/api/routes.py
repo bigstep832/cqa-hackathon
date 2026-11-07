@@ -5,6 +5,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Header, Path, Query
 
 from app.api.boundary import StrictJSONRoute
+from app.api.history_models import EvaluationHistoryList, VersionHistoryList
 from app.contracts.models import (
     Appeal,
     AppealCreateRequest,
@@ -30,7 +31,7 @@ from app.contracts.models import (
 )
 from app.evaluation.demo import build_demo_payload
 from app.services import appeals, imports, jobs
-from app.storage import conversations, workflow
+from app.storage import conversations, history, workflow
 
 ERRORS: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorResponse, "description": "Entity not found"},
@@ -93,6 +94,30 @@ def get_conversation(conversation_id: Annotated[str, Path(min_length=1)]) -> Con
 )
 def get_conversation_version(version_id: Identifier) -> ConversationVersion:
     return conversations.get_version(version_id)
+
+
+@router.get(
+    "/api/v1/conversation-versions/{version_id}/history/versions",
+    response_model=VersionHistoryList, tags=["conversations"],
+)
+def list_version_history(
+    version_id: Identifier,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> VersionHistoryList:
+    return history.list_versions(version_id, offset, limit)
+
+
+@router.get(
+    "/api/v1/conversation-versions/{version_id}/history/evaluations",
+    response_model=EvaluationHistoryList, tags=["evaluations"],
+)
+def list_evaluation_history(
+    version_id: Identifier,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> EvaluationHistoryList:
+    return history.list_evaluations(version_id, offset, limit)
 
 
 @router.post(

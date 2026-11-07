@@ -24,6 +24,7 @@ from app.contracts.models import (
 )
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
 from app.evaluation.factory import create_provider
+from app.main import app
 from app.services import jobs, live_workflow
 from app.storage.conversations import import_conversations
 from app.storage.database import get_engine, write_transaction
@@ -309,6 +310,57 @@ def test_manual_spoof_and_superseded_manifest_cannot_reach_model(database, tmp_p
     assert get_evaluation(queued.id).status == "failed" and not attempts
     with get_engine().connect() as db:
         assert not db.execute(text("SELECT * FROM live_limits")).all()
+
+
+def test_history_from_reimported_card_is_scoped_and_paginated(database, tmp_path, monkeypatch):
+    install_plan(tmp_path, monkeypatch)
+    client = TestClient(app, base_url="http://127.0.0.1")
+
+    def save(group, source, message):
+        packet = ConversationImportRequest.model_validate({
+            "dataset_group_id": group,
+            "records": [{"conversation_id": "case/RU-17", "channel": "agent chat", "language": "RU",
+                         "transcript": [{"timestamp": "00:01", "speaker": "operator", "text": message}]}],
+        })
+        return import_conversations(packet, source=source).conversation_version_ids[0]
+
+    v1 = save("SYNTHETIC", "organizer", "Первая реплика")
+    body = request("live").model_copy(update={"conversation_version_id": v1})
+    first, second = (jobs.create_evaluation(body) for _ in range(2))
+    v2 = save("SYNTHETIC", "organizer", "Новая реплика")
+    other_group = save("OTHER", "organizer", "Другой набор")
+    other_source = save("SYNTHETIC", "manual", "Другой источник")
+    cards = client.get("/api/v1/conversations").json()["items"]
+    assert {card["latest_version_id"] for card in cards} == {v2, other_group, other_source}
+    path = f"/api/v1/conversation-versions/{v2}/history"
+    assert [v["id"] for v in client.get(f"{path}/versions").json()["items"]] == [v2, v1]
+    page = client.get(f"{path}/evaluations", params={"offset": 1, "limit": 1}).json()
+    assert (page["offset"], page["limit"], page["total"]) == (1, 1, 2)
+    item, = page["items"]
+    assert item == {"id": first.id, "conversation_version_id": v1,
+                    "checklist_version_id": body.checklist_version_id, "mode": "live",
+                    "status": "queued", "created_at": first.model_dump(mode="json")["created_at"]}
+    newest = client.get(f"{path}/evaluations").json()["items"]
+    assert [job["id"] for job in newest] == [second.id, first.id]
+    original = client.get(f"/api/v1/evaluations/{item['id']}").json()
+    prior = client.get(f"/api/v1/conversation-versions/{original['conversation_version_id']}").json()
+    assert prior["messages"][0]["text"] == "Первая реплика"
+    for unrelated in (other_source, other_group):
+        sibling = f"/api/v1/conversation-versions/{unrelated}/history"
+        assert client.get(f"{sibling}/evaluations").json()["total"] == 0
+        assert [v["id"] for v in client.get(f"{sibling}/versions").json()["items"]] == [unrelated]
+    for collection in ("versions", "evaluations"):
+        assert client.get(f"/api/v1/conversation-versions/missing/history/{collection}").status_code == 404
+        assert client.get(f"{path}/{collection}", params={"limit": 101}).status_code == 422
+
+
+def test_history_includes_evaluations_of_builtin_demo(database):
+    client = TestClient(app, base_url="http://127.0.0.1")
+    queued = jobs.create_evaluation(request("mock"))
+    history = f"/api/v1/conversation-versions/{queued.conversation_version_id}/history"
+    assert client.get(f"{history}/versions").json()["items"][0]["id"] == queued.conversation_version_id
+    job, = client.get(f"{history}/evaluations").json()["items"]
+    assert (job["id"], job["mode"]) == (queued.id, "mock")
 
 
 def test_replacement_between_reservation_and_transport_blocks_attempt(
