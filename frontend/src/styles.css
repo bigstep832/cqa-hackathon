@@ -311,3 +311,21 @@ button.nav-link--active { background: var(--green-soft); border-color: var(--gre
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
 }
+
+/* Persisted conversation history; independent pages for versions and jobs. */
+.conversation-card { display: grid; gap: 16px; min-width: 0; }
+.conversation-history summary { padding: 18px 20px; font-weight: 650; border-radius: var(--radius); }
+.conversation-history[open] summary { border-bottom: 1px solid var(--line); }
+.history-content { padding: 20px; display: grid; gap: 24px; }
+.history-content > p, .history-collection > p { font-size: 14px; }
+.history-collection { min-width: 0; }
+.history-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.history-items { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
+.history-item { display: grid; gap: 8px; width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 16px; text-align: left; background: var(--surface); color: var(--ink); overflow-wrap: anywhere; font-size: 14px; }
+.history-item:hover, .history-item[aria-pressed="true"] { background: var(--green-soft); border-color: var(--green); }
+.history-item-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.history-item .version-label { margin: 0; }
+.history-pagination { padding: 16px 0 0; }
+.history-first { border: 0; background: transparent; padding: 10px; min-height: 44px; }
+.version-context { color: var(--muted); font-size: 14px; }
+@media (max-width: 700px) { .history-content { padding: 16px; } .history-item { padding: 12px; } }

@@ -1,15 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type Evaluation } from './api/client';
-import { loadEvaluationResult, validateEvaluation, type EvaluationAttempt, type EvaluationResult } from './api/evaluation';
+import { loadEvaluationResult, validateEvaluation, evaluationStatusLabels, type EvaluationAttempt, type EvaluationResult } from './api/evaluation';
 import { ApiFailure } from './ApiFailure';
 import { AppealWorkspace } from './AppealWorkspace';
 
-const labels: Record<Evaluation['status'], string> = {
-  queued: 'В очереди', running: 'Оценка выполняется', succeeded: 'Оценка завершена', failed: 'Оценка не выполнена',
-};
-
 export function EvaluationMonitor({ attempt, initial, onNew }: {
-  attempt: EvaluationAttempt & { evaluationId: string }; initial?: Evaluation; onNew: () => void;
+  attempt: Pick<EvaluationAttempt, 'body'> & { evaluationId: string }; initial?: Evaluation; onNew?: () => void;
 }) {
   const [evaluation, setEvaluation] = useState<Evaluation | null>(initial ?? null);
   const [result, setResult] = useState<EvaluationResult | null>(null);
@@ -44,7 +40,7 @@ export function EvaluationMonitor({ attempt, initial, onNew }: {
 
   return <section className="evaluation-run" aria-label="Задание оценки">
     <div className="evaluation-status" role="status">
-      <strong>{error?.missingEvaluation ? 'Сохранённая оценка не найдена' : evaluation ? labels[evaluation.status] : 'Получаем статус оценки…'}</strong>
+      <strong>{error?.missingEvaluation ? 'Сохранённая оценка не найдена' : evaluation ? evaluationStatusLabels[evaluation.status] : 'Получаем статус оценки…'}</strong>
       {evaluation && !error?.missingEvaluation && <span className={`tag evaluation-status--${evaluation.status}`}>{evaluation.status}</span>}
     </div>
     <p className="version-label">Оценка: {attempt.evaluationId}</p>
@@ -52,8 +48,10 @@ export function EvaluationMonitor({ attempt, initial, onNew }: {
     {attempt.body.mode === 'mock' && <p className="synthetic-note">Тестовые данные — не AI-оценка</p>}
     {error?.missingEvaluation ? <div className="request-error" role="alert">
       <p>Сохранённая оценка больше недоступна на сервере (HTTP 404).</p>
-      <p>Можно очистить эту сохранённую попытку и выбрать параметры новой оценки. Запуск потребует отдельного нажатия.</p>
-      <button className="primary-button" onClick={onNew}>Начать новую оценку</button>
+      {onNew ? <><p>Можно очистить эту сохранённую попытку и выбрать параметры новой оценки. Запуск потребует отдельного нажатия.</p>
+      <button className="primary-button" onClick={onNew}>Начать новую оценку</button></>
+        : <><p>Вернитесь к истории и выберите другую оценку или повторите загрузку этой записи.</p>
+          <button className="secondary-button" onClick={() => { setError(null); setRetry(value => value + 1); }}>Повторить загрузку</button></>}
     </div> : error != null && <><ApiFailure error={error.cause} retry={() => { setError(null); setRetry(value => value + 1); }} />
       <p className="muted">Повтор загружает это же задание и его версии. Новая оценка не создаётся.</p></>}
     {evaluation?.status === 'failed' && <div className="request-error" role="alert">
@@ -62,6 +60,6 @@ export function EvaluationMonitor({ attempt, initial, onNew }: {
     </div>}
     {evaluation?.status === 'succeeded' && !result && !error && <p role="status">Загружаем сохранённые версии результата…</p>}
     {result && <AppealWorkspace key={result.evaluation.id} initial={result} />}
-    {(evaluation?.status === 'failed' || result) && <button className="secondary-button" onClick={onNew}>Новая оценка</button>}
+    {onNew && (evaluation?.status === 'failed' || result) && <button className="secondary-button" onClick={onNew}>Новая оценка</button>}
   </section>;
 }

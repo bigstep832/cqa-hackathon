@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { api, type ConversationList, type ConversationQuery, type ConversationVersion } from './api/client';
+import { api, type ConversationList, type ConversationQuery, type ConversationVersion, type EvaluationHistoryItem } from './api/client';
 import { ApiFailure } from './ApiFailure';
 import { ConversationImport } from './ConversationImport';
 import { EvaluationWorkspace } from './EvaluationWorkspace';
 import { ConversationAudio } from './ConversationAudio';
 import { AssignmentPanel } from './operators/AssignmentPanel';
+import { ConversationHistory } from './ConversationHistory';
+import { SavedEvaluation } from './SavedEvaluation';
 
 type Resource<T> = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: T };
 const pageSize = 25;
@@ -16,19 +18,29 @@ export function ConversationsScreen({ initialVersionId = null }: { initialVersio
   const [selected, setSelected] = useState<string | null>(initialVersionId);
   const [detailAttempt, setDetailAttempt] = useState(0);
   const [evaluating, setEvaluating] = useState(false);
+  const [historicalVersion, setHistoricalVersion] = useState<string | null>(null);
+  const [savedEvaluation, setSavedEvaluation] = useState<EvaluationHistoryItem | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const currentVersion = historicalVersion ?? selected;
+  function selectConversation(id: string | null) { setSelected(id); setHistoricalVersion(null); setHistoryOpen(false); }
+
 
   function changeQuery(next: ConversationQuery) {
-    setQuery(next); setSelected(null); setRevision(value => value + 1);
+    setQuery(next); selectConversation(null); setRevision(value => value + 1);
   }
   const reload = () => { setRevision(value => value + 1); };
-  if (evaluating && selected) return <>
+  if (savedEvaluation) return <>
+    <button className="secondary-button evaluation-back" onClick={() => { setSavedEvaluation(null); setHistoryOpen(true); }}>К истории диалога</button>
+    <SavedEvaluation key={savedEvaluation.id} item={savedEvaluation} />
+  </>;
+  if (evaluating && currentVersion) return <>
     <button className="secondary-button evaluation-back" onClick={() => setEvaluating(false)}>К списку диалогов</button>
-    <EvaluationWorkspace key={selected} conversationVersionId={selected} />
+    <EvaluationWorkspace key={currentVersion} conversationVersionId={currentVersion} />
   </>;
   return <>
     <ConversationImport onImported={result => {
       setQuery({ offset: 0, limit: pageSize });
-      setSelected(result.conversation_version_ids[0] ?? null);
+      selectConversation(result.conversation_version_ids[0] ?? null);
       setDetailAttempt(value => value + 1);
       reload();
     }} />
@@ -46,9 +58,14 @@ export function ConversationsScreen({ initialVersionId = null }: { initialVersio
     </section>
     <div className="conversation-grid">
       <ConversationListPanel key={`${JSON.stringify(query)}:${revision}`} query={query} selected={selected}
-        onSelect={setSelected} retry={reload} onPage={offset => changeQuery({ ...query, offset })} />
-      {selected ? <ConversationDetail key={`${selected}:${detailAttempt}`} id={selected}
-        retry={() => setDetailAttempt(value => value + 1)} onEvaluate={() => setEvaluating(true)} />
+        onSelect={selectConversation} retry={reload} onPage={offset => changeQuery({ ...query, offset })} />
+      {selected && currentVersion ? <div className="conversation-card">
+        <ConversationHistory key={selected} initiallyOpen={historyOpen} anchorId={selected} currentVersionId={currentVersion}
+          onVersion={setHistoricalVersion} onEvaluation={setSavedEvaluation} />
+        <p className="version-context" role="status">{currentVersion === selected ? 'Открыта последняя версия из списка.' : 'Открыта историческая версия диалога.'}</p>
+        <ConversationDetail key={`${currentVersion}:${detailAttempt}`} id={currentVersion} isLatest={currentVersion === selected}
+          retry={() => setDetailAttempt(value => value + 1)} onEvaluate={() => setEvaluating(true)} />
+      </div>
         : <section className="panel state-panel"><h2>Выберите диалог</h2><p>Откройте запись из списка, чтобы прочитать её транскрипт.</p></section>}
     </div>
   </>;
@@ -93,11 +110,14 @@ function ConversationListPanel({ query, selected, onSelect, retry, onPage }: {
   </section>;
 }
 
-function ConversationDetail({ id, retry, onEvaluate }: { id: string; retry: () => void; onEvaluate: () => void }) {
+function ConversationDetail({ id, isLatest, retry, onEvaluate }: {
+  id: string; isLatest: boolean; retry: () => void; onEvaluate: () => void;
+}) {
   const [state, setState] = useState<Resource<ConversationVersion>>({ status: 'loading' });
   useEffect(() => {
     const controller = new AbortController();
     api.getConversationVersion(id, controller.signal).then(data => {
+      if (data.id !== id) throw new Error('Сервер вернул другую версию диалога. Повторите загрузку.');
       if (!controller.signal.aborted) setState({ status: 'ready', data });
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) setState({ status: 'error', error });
@@ -126,7 +146,8 @@ function ConversationDetail({ id, retry, onEvaluate }: { id: string; retry: () =
         <ConversationAudio conversation={state.data} />
         <span className="version-label">Версия диалога: {state.data.id}</span>
       </div>
-      <AssignmentPanel conversation={state.data} />
+      {isLatest ? <AssignmentPanel conversation={state.data} />
+        : <p className="muted">Данные оператора можно изменить в последней версии диалога.</p>}
     </>}
   </section>;
 }

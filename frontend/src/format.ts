@@ -14,3 +14,11 @@ export function formatWeight(value: string | number | null | undefined): string 
   if (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) return '—';
   return text.replace(/(\.\d*?)0+(?=[eE]|$)/, '$1').replace(/\.(?=[eE]|$)/, '').replace('.', ',');
 }
+
+// Display dates only; never used for audio seeking.
+export function formatDateTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat('ru-RU', {
+    dateStyle: 'medium', timeStyle: 'short',
+  }).format(date);
+}
