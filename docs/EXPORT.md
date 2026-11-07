@@ -17,14 +17,14 @@ python -m pytest backend/tests/workflow/test_submission.py backend/tests/workflo
 2. Зафиксируйте импортированные версии в приватном JSON. В примере замените `GROUP_ID` фактическим идентификатором группы. Первая команда сохраняет выборку. Вторая ставит её задания в очередь в рамках согласованного плана. Повтор с тем же путём восстанавливает прежние ID. Для контроля укажите `--dataset prod` и отдельный файл выбора.
 
 ```sh
-python scripts/prepare_batch.py --dataset dev --group GROUP_ID --team DT-20 --selection artifacts/private/dev-selection.json
-python scripts/prepare_batch.py --dataset dev --group GROUP_ID --team DT-20 --selection artifacts/private/dev-selection.json --enqueue
+python scripts/prepare_batch.py --dataset dev --group GROUP_ID --team DT20 --selection artifacts/private/dev-selection.json
+python scripts/prepare_batch.py --dataset dev --group GROUP_ID --team DT20 --selection artifacts/private/dev-selection.json --enqueue
 ```
 
-3. Официальное название команды — `DT-20`, с точным регистром и без дополнительных пробелов. Поля `dataset` и `group_id` задают путь сдачи и фактическую импортированную группу. Объект `jobs` связывает каждый ID импортированной **версии** с одним ID задания по чек-листу `checklist-default-v1`. Для внешних вызовов нужны согласованные передача данных, бюджет и модель. Следующий фрагмент поясняет форму файла. Для настоящего экспорта требуется полный список.
+3. Официальное название команды — `DT20`, с точным регистром и без дополнительных пробелов. Поля `dataset` и `group_id` задают путь сдачи и фактическую импортированную группу. Объект `jobs` связывает каждый ID импортированной **версии** с одним ID задания по чек-листу `checklist-default-v1`. Для внешних вызовов нужны согласованные передача данных, бюджет и модель. Следующий фрагмент поясняет форму файла. Для настоящего экспорта требуется полный список.
 
 ```json
-{"dataset":"prod","group_id":"<группа организаторов>","team_name":"DT-20",
+{"dataset":"prod","group_id":"<группа организаторов>","team_name":"DT20",
  "jobs":{"<ID импортированной версии>":"<ID поставленного задания>"}}
 ```
 

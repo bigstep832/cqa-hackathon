@@ -32,7 +32,7 @@ from app.domain.snapshots import checklist_content_hash, conversation_content_ha
 from app.evaluation.validation import validate_output
 
 ROOT = Path(__file__).resolve().parents[3]
-TEAM_NAME = "DT-20"
+TEAM_NAME = "DT20"
 OFFICIAL_ID = "checklist-default-v1"
 OFFICIAL_HASH = "f172eb1ab664d3e4d11f1a55a6b34b51e6ca3fd7af0c402443f065b10b8c9437"
 CRITERIA = dict(zip(
@@ -166,7 +166,7 @@ def build_submission(
     cutoff: dict[str, tuple[ProviderCall, ...]] | None = None, rehearsal: bool = False,
 ) -> dict[str, Any]:
     if not rehearsal and selection.team_name != TEAM_NAME:
-        raise SubmissionError("The official team name must be exactly DT-20.")
+        raise SubmissionError(f"The official team name must be exactly {TEAM_NAME}.")
     if checklist.id != OFFICIAL_ID or checklist_content_hash(checklist) != OFFICIAL_HASH:
         raise SubmissionError("Expected the pinned official checklist ID and content hash.")
     expected_channels = {"agent chat": 10} if selection.dataset == "prod" else {

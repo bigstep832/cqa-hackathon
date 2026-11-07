@@ -52,7 +52,7 @@ def batch(dataset="prod"):
         request = EvaluationCreateRequest(mode="live", provider=call.provider, model=call.model,
                                          checklist_version_id=demo.checklist.id, conversation_version_id=conversation.id)
         jobs[job_id] = SelectedJob(evaluation, request, (call,), "test-plan")
-    selection = ReleaseSelection(dataset=dataset, group_id="offline-test", team_name="DT-20", jobs=mapping)
+    selection = ReleaseSelection(dataset=dataset, group_id="offline-test", team_name="DT20", jobs=mapping)
     return selection, manifest, demo.checklist, jobs
 
 
@@ -210,12 +210,12 @@ def test_job_succeeded_after_cutoff_keeps_failure_and_prior_model_provenance(pac
     assert document["model"] == {"mode": "local", "name": "local/offline-fixture"}
 
 
-@pytest.mark.parametrize("name", ["dt-20", "DT-20 ", " DT-20", "Synthetic rehearsal"])
+@pytest.mark.parametrize("name", ["DT-20", "dt20", "DT20 ", " DT20", "Synthetic rehearsal"])
 def test_official_team_name_is_exact(package, name):
     selection, manifest, checklist, jobs = package
     fields = selection.model_dump()
     fields["team_name"] = name
-    with pytest.raises(SubmissionError, match="exactly DT-20"):
+    with pytest.raises(SubmissionError, match="exactly DT20"):
         build_submission(ReleaseSelection.model_validate(fields), manifest, checklist, jobs)
 
 

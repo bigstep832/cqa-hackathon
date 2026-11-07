@@ -53,7 +53,7 @@ def test_offline_persisted_failures_export_and_validate(tmp_path, monkeypatch):
                              "transcript": [{"speaker": "operator", "timestamp": "00:02",
                                              "text": "Учебный диалог."}]} for n in range(10)]}),
                 source="organizer")
-            args = (selection_file, "prod", "TEST", "DT-20")
+            args = (selection_file, "prod", "TEST", "DT20")
             assert prepare_batch.prepare(*args, enqueue=False) == 0
             assert prepare_batch.prepare(*args, enqueue=True) == 10
             selected = ReleaseSelection.model_validate(read_json(selection_file))
@@ -82,7 +82,7 @@ def test_offline_persisted_failures_export_and_validate(tmp_path, monkeypatch):
     try:
         asyncio.run(exercise())
         raw = json.loads(path.read_text(encoding="utf-8"))
-        assert raw["team_name"] == "DT-20"
+        assert raw["team_name"] == "DT20"
         assert len(raw["results"]) == 10 and all(row["status"] == "error" for row in raw["results"])
         assert raw["model"] == {"mode": "local", "name": "local/synthetic-transport"}
         assert "test-private-fragment" not in path.read_text(encoding="utf-8")
