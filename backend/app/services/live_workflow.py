@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import httpx
 from evals.live import LivePlan, validate_cases
@@ -24,7 +25,8 @@ from app.evaluation.demo import load_synthetic_input
 from app.evaluation.factory import ProviderConfig, create_provider
 from app.evaluation.provider import EvaluationProvider
 from app.storage.conversations import organizer_version_is_current
-from app.storage.database import write_transaction
+from app.storage.database import get_engine, write_transaction
+from app.storage.workflow import handoff_marker
 
 
 def configured_plan() -> tuple[str, LivePlan]:
@@ -77,11 +79,13 @@ class DispatchTransport(httpx.AsyncBaseTransport):
         self.reserved = 0
         self.dispatched = 0
         self.sent_at: float | None = None
+        self.started_at: datetime | None = None
         self.transport = outbound_transport()
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         if self.reserved != self.dispatched + 1:
             raise ValueError("No reservation for this transport dispatch")
+        token = uuid4().hex
         with write_transaction() as db:
             if (
                 configured_plan()[0] != self.plan_id
@@ -91,30 +95,57 @@ class DispatchTransport(httpx.AsyncBaseTransport):
                 raise ValueError("Attempt is no longer authorized")
             db.execute(
                 text("""INSERT INTO evaluation_dispatches
-                (evaluation_id,attempt,provider,model,started_at)
-                VALUES(:id,:attempt,:provider,:model,:at)"""),
+                (evaluation_id,attempt,provider,model,started_at,handoff_token)
+                VALUES(:id,:attempt,:provider,:model,:at,:token)"""),
                 {
                     "id": self.evaluation_id,
                     "attempt": self.reserved,
                     "provider": self.plan.provider,
                     "model": self.plan.model,
                     "at": datetime.now(UTC).isoformat(),
+                    "token": token,
                 },
             )
-        self.dispatched = self.reserved
-        self.sent_at = asyncio.get_running_loop().time()
-        return await self.transport.handle_async_request(request)
+        # COMMIT can wait on a reader. This row alone must never attest to a send.
+        # Make the handoff observable to exporters without a second blocking COMMIT.
+        with get_engine().connect() as db:
+            marker = handoff_marker(db, token)
+            marker.parent.mkdir(exist_ok=True)
+            with marker.open("xb", buffering=0) as witness:
+                # Serialize with organizer imports and the export cutoff. This transaction
+                # writes no SQLite pages; it releases its lock without another write commit.
+                db.exec_driver_sql("BEGIN IMMEDIATE")
+                if (
+                    not approved_snapshot(db, self.case.conversation, self.plan)
+                    or configured_plan()[0] != self.plan_id
+                    or asyncio.get_running_loop().time() >= self.attempt_deadline
+                ):
+                    raise ValueError("Attempt is no longer authorized")
+                self.started_at = datetime.now(UTC)
+                timestamp = self.started_at.isoformat(timespec="microseconds").encode("ascii")
+                if witness.write(timestamp) != len(timestamp):
+                    raise OSError("Incomplete dispatch timestamp")
+                self.sent_at = asyncio.get_running_loop().time()
+                self.dispatched = self.reserved
+                # Enter the transport now, while imports and cutoff are still excluded.
+                # Release SQLite at its first suspension, before waiting for network I/O.
+                send = asyncio.Task(self.transport.handle_async_request(request),
+                                    loop=asyncio.get_running_loop(), eager_start=True)
+        return await send
 
     def record_call(self, call: ProviderCall, *, interrupted: bool = False) -> None:
+        if self.dispatched != call.attempt or self.started_at is None:
+            return
         # The adapter supplies the full latency/usage on ordinary success or error.
         # Cancellation only fills a missing measurement for an actual dispatch.
         with write_transaction() as db:
             db.execute(
-                text("""UPDATE evaluation_dispatches SET completed_call=:call
+                text("""UPDATE evaluation_dispatches SET completed_call=:call, started_at=:started_at
                 WHERE evaluation_id=:id AND attempt=:attempt AND provider=:provider AND model=:model
                 AND (:interrupted=0 OR completed_call IS NULL)"""),
                 {
                     "call": call.model_dump_json(),
+                    "started_at": self.started_at.isoformat(),
                     "id": self.evaluation_id,
                     "attempt": call.attempt,
                     "provider": call.provider,
