@@ -12,8 +12,8 @@ from app.storage.conversations import audio_source
 
 router = APIRouter()
 _MAX_AUDIO = 64 * 1024 * 1024
-_RANGE = re.compile(r"bytes=(?:[0-9]+-[0-9]*|-[0-9]+)")
-_CONTENT_RANGE = re.compile(r"bytes [0-9]+-[0-9]+/(?:[0-9]+|\*)")
+_RANGE = re.compile(r"bytes=([0-9]*)-([0-9]*)", re.I)
+_CONTENT_RANGE = re.compile(r"bytes ([0-9]+)-([0-9]+)/(\*|[0-9]+)", re.I)
 _AUDIO_TYPES = {
     "audio/mpeg",
     "audio/mp3",
@@ -35,6 +35,36 @@ def _media_origin(url: str, *, configured: bool = False) -> tuple[str | None, in
     if configured and (target.path not in ("", "/") or target.query):
         raise ValueError("Expected an HTTPS origin without query or path")
     return target.hostname, target.port or 443
+
+
+def _requested_range(value: str) -> tuple[int | None, int | None]:
+    match = _RANGE.fullmatch(value) if len(value) <= 80 else None
+    if match:
+        first = int(match[1]) if match[1] else None
+        last = int(match[2]) if match[2] else None
+        if first is None and last:
+            return first, last
+        if first is not None and (last is None or first <= last):
+            return first, last
+    raise source_http.failure(416, "INVALID_RANGE", "Некорректный диапазон аудио.")
+
+
+def _matches_request(
+    value: str, size: int, requested: tuple[int | None, int | None] | None
+) -> bool:
+    match = _CONTENT_RANGE.fullmatch(value) if len(value) <= 160 else None
+    if not match or requested is None:
+        return False
+    first, last = int(match[1]), int(match[2])
+    total = int(match[3]) if match[3] != "*" else None
+    if last < first or size != last - first + 1 or (total is not None and last >= total):
+        return False
+    start, end = requested
+    if start is not None:
+        return first == start and (end is None or last <= end)
+    return (
+        total is not None and end is not None and first == max(0, total - end) and last == total - 1
+    )
 
 
 @router.get(
@@ -77,8 +107,7 @@ def get_audio(version_id: str, range_header: str | None = Header(None, alias="Ra
         permitted = False
     if not permitted:
         raise source_http.failure(403, "MEDIA_ORIGIN_NOT_ALLOWED", "Источник аудио не разрешён.")
-    if range_header is not None and (len(range_header) > 80 or not _RANGE.fullmatch(range_header)):
-        raise source_http.failure(416, "INVALID_RANGE", "Некорректный диапазон аудио.")
+    requested = _requested_range(range_header) if range_header is not None else None
     request_headers = {"Range": range_header} if range_header is not None else {}
     status, headers, data = source_http.fetch(url, headers=request_headers, max_bytes=_MAX_AUDIO)
     if status == 416:
@@ -94,7 +123,7 @@ def get_audio(version_id: str, range_header: str | None = Header(None, alias="Ra
     }
     if status == 206:
         span = headers.get("content-range", "")
-        if not _CONTENT_RANGE.fullmatch(span):
+        if not _matches_request(span, len(data), requested):
             raise source_http.failure(502, "INVALID_MEDIA", "Неверный диапазон аудио.")
         public_headers["Content-Range"] = span
     return Response(data, status_code=status, media_type=mime, headers=public_headers)

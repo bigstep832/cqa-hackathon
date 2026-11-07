@@ -163,6 +163,34 @@ def test_bad_source_never_echoes_url_or_response(client, monkeypatch, status, bo
     assert client.get(f"{PREFIX}/conversations").json()["total"] == 0
 
 
+@pytest.mark.parametrize("configured", ["group_id=", "group_id", "group%5Fid=", "Group_Id=other"])
+def test_ambiguous_group_query_never_reaches_upstream(client, monkeypatch, configured):
+    monkeypatch.setenv("ORGANIZER_API_URL", f"https://source.invalid/import?{configured}")
+    monkeypatch.setattr(source_http, "fetch", lambda *a, **kw: pytest.fail("Ambiguous group sent"))
+    response = client.post(f"{PREFIX}/datasets/import", json={"group_id": "TEST"})
+    assert response.status_code == 503
+
+
+def test_duplicate_source_keys_do_not_replace_manifest(client, monkeypatch):
+    monkeypatch.setenv("ORGANIZER_API_URL", "https://source.invalid/import")
+
+    def payload(identifier):
+        return json.dumps({"isSuccess": True, "data": {"records": [record(identifier)]}})
+
+    content = payload("original")
+    monkeypatch.setattr(source_http, "fetch", lambda *a, **kw: (200, {}, content.encode()))
+
+    def run_import():
+        return client.post(f"{PREFIX}/datasets/import", json={"group_id": "TEST"})
+
+    assert run_import().status_code == 200
+    content = payload("replacement").replace(
+        '"isSuccess": true', '"isSuccess": false, "isSuccess": true'
+    )
+    assert run_import().status_code == 502
+    assert [v.conversation_id for v in conversations.group_versions("TEST")] == ["original"]
+
+
 def test_audio_is_opaque_allowlisted_and_range_checked(client, monkeypatch):
     version_id = submit(
         client, record(audio_url="https://media.invalid/test?example=synthetic-secret")
@@ -204,3 +232,38 @@ def test_audio_is_opaque_allowlisted_and_range_checked(client, monkeypatch):
         lambda url, **kwargs: (200, {"content-type": "text/html"}, b"<script>"),
     )
     assert client.get(endpoint).status_code == 502
+
+
+@pytest.mark.parametrize(
+    ("requested", "returned", "expected_status"),
+    [
+        ("bytes=2-3", "bytes 0-1/8", 502),
+        ("bytes=2-3", "bytes 2-5/8", 502),
+        ("bytes=2-", "bytes 2-3/3", 502),
+        ("bytes=-2", "bytes 0-1/8", 502),
+        ("bytes=-2", "bytes 6-7/8", 206),
+        ("bytes=6-15", "bytes 6-7/8", 206),
+        (None, "bytes 0-1/8", 502),
+    ],
+)
+def test_partial_audio_response_matches_requested_bytes(
+    client, monkeypatch, requested, returned, expected_status
+):
+    version = submit(client, record(audio_url="https://media.invalid/example")).json()[
+        "conversation_version_ids"
+    ][0]
+    monkeypatch.setenv("CQA_AUDIO_ORIGINS", "https://media.invalid")
+    monkeypatch.setattr(
+        source_http,
+        "fetch",
+        lambda *a, **kw: (
+            206,
+            {"content-type": "audio/mpeg", "content-range": returned},
+            b"ab",
+        ),
+    )
+    response = client.get(
+        f"{PREFIX}/conversation-versions/{version}/audio",
+        headers={"Range": requested} if requested else {},
+    )
+    assert response.status_code == expected_status
