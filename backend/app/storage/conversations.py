@@ -251,6 +251,14 @@ def get_conversation(conversation_id: str) -> ConversationVersion:
     return _read_snapshot(value)
 
 
+def organizer_version_is_current(connection: Connection, group_id: str, version_id: str) -> bool:
+    member = select(_members.c.version_id).where(
+        _members.c.group_id == group_id,
+        _members.c.version_id == version_id,
+    )
+    return connection.scalar(member) is not None
+
+
 def group_versions(group_id: str) -> tuple[ConversationVersion, ...]:
     initialize_conversations()
     with get_engine().connect() as connection:
