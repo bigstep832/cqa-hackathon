@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import os
 import sys
+from contextlib import ExitStack
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -73,13 +74,31 @@ def release_cutoff(
 
 
 def release(action: str, selection_file: Path, final: bool) -> None:
-    from app.storage.conversations import group_versions_snapshot, initialize_conversations
-    from app.storage.database import get_engine, write_transaction
-    from app.storage.workflow import checklist_snapshot
+    from app.services.jobs import exclusive_file_lock
 
     if not selection_file.resolve().is_relative_to(ROOT / "artifacts/private"):
         raise SubmissionError("Keep the selection file inside artifacts/private.")
     selection = ReleaseSelection.model_validate(read_json(selection_file))
+    lock_path = ROOT / "artifacts/private" / f"{selection.dataset}-publication.lock"
+    # Two different selections can share one official path. Acquire before reading
+    # the DB snapshot and release only after the verified file has been replaced.
+    with ExitStack() as stack:
+        if action == "export":
+            try:
+                stack.enter_context(exclusive_file_lock(lock_path))
+            except OSError:
+                raise SubmissionError(
+                    "Cannot lock this dataset for export. Check private directory permissions "
+                    "or retry after the current export."
+                ) from None
+        release_selection(action, selection, final)
+
+
+def release_selection(action: str, selection: ReleaseSelection, final: bool) -> None:
+    from app.storage.conversations import group_versions_snapshot, initialize_conversations
+    from app.storage.database import get_engine, write_transaction
+    from app.storage.workflow import checklist_snapshot
+
     initialize_conversations()
     capture = action == "export" and final
     with (write_transaction() if capture else get_engine().connect()) as db:
