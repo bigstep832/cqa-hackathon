@@ -1,5 +1,22 @@
 @import url('./tokens.css');
 
+.evaluation-back { margin-bottom: 20px; }
+.evaluation-form { display: grid; gap: 12px; padding: 24px; margin-top: 20px; }
+.evaluation-form select { width: 100%; min-width: 0; }
+.evaluation-form button { justify-self: start; }
+.evaluation-form p { overflow-wrap: anywhere; }
+.evaluation-form .request-error { padding: 0; }
+.evaluation-status { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 20px 0 10px; }
+.evaluation-status--failed { color: var(--danger); }
+.evaluation-status--succeeded { color: var(--green); }
+.evaluation-run > .secondary-button { margin-top: 20px; }
+.effective-summary { padding: 20px 24px; margin-bottom: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.effective-summary strong { font-size: 30px; color: var(--green); }
+.effective-summary p { font-size: 13px; margin-top: 6px; }
+.result-provenance { font-size: 13px; color: var(--muted); margin-bottom: 16px; overflow-wrap: anywhere; }
+.selected-dialogue { overflow-wrap: anywhere; }
+@media (max-width: 700px) { .effective-summary { grid-template-columns: minmax(0, 1fr); } .evaluation-form { padding: 16px; } }
+
 button.nav-link { width: 100%; border: 0; background: transparent; text-align: left; color: var(--ink); }
 button.nav-link--active { background: var(--green-soft); color: var(--green); }
 .conversation-filters { display: flex; flex-wrap: wrap; gap: 14px; align-items: end; margin: 24px 0; }

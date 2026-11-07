@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type ConversationList, type ConversationQuery, type ConversationVersion } from './api/client';
 import { ApiFailure } from './ApiFailure';
 import { ConversationImport } from './ConversationImport';
+import { EvaluationWorkspace } from './EvaluationWorkspace';
 
 type Resource<T> = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: T };
 const pageSize = 25;
@@ -12,11 +13,16 @@ export function ConversationsScreen() {
   const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [detailAttempt, setDetailAttempt] = useState(0);
+  const [evaluating, setEvaluating] = useState(false);
 
   function changeQuery(next: ConversationQuery) {
     setQuery(next); setSelected(null); setRevision(value => value + 1);
   }
   const reload = () => { setRevision(value => value + 1); };
+  if (evaluating && selected) return <>
+    <button className="secondary-button evaluation-back" onClick={() => setEvaluating(false)}>К списку диалогов</button>
+    <EvaluationWorkspace key={selected} conversationVersionId={selected} />
+  </>;
   return <>
     <ConversationImport onImported={result => {
       setQuery({ offset: 0, limit: pageSize });
@@ -40,7 +46,7 @@ export function ConversationsScreen() {
       <ConversationListPanel key={`${JSON.stringify(query)}:${revision}`} query={query} selected={selected}
         onSelect={setSelected} retry={reload} onPage={offset => changeQuery({ ...query, offset })} />
       {selected ? <ConversationDetail key={`${selected}:${detailAttempt}`} id={selected}
-        retry={() => setDetailAttempt(value => value + 1)} />
+        retry={() => setDetailAttempt(value => value + 1)} onEvaluate={() => setEvaluating(true)} />
         : <section className="panel state-panel"><h2>Выберите диалог</h2><p>Откройте запись из списка, чтобы прочитать её транскрипт.</p></section>}
     </div>
   </>;
@@ -84,7 +90,7 @@ function ConversationListPanel({ query, selected, onSelect, retry, onPage }: {
   </section>;
 }
 
-function ConversationDetail({ id, retry }: { id: string; retry: () => void }) {
+function ConversationDetail({ id, retry, onEvaluate }: { id: string; retry: () => void; onEvaluate: () => void }) {
   const [state, setState] = useState<Resource<ConversationVersion>>({ status: 'loading' });
   useEffect(() => {
     const controller = new AbortController();
@@ -102,7 +108,8 @@ function ConversationDetail({ id, retry }: { id: string; retry: () => void }) {
     {state.status === 'ready' && <>
       <div className="panel-notice"><h3>{state.data.conversation_id}</h3>
         <p>{state.data.language} · {state.data.channel === 'voice call' ? 'Звонок' : 'Чат'} · {state.data.messages.length} сообщений</p>
-        <p>Оцениваются действия оператора. Оценка на этом экране не запускается.</p>
+        <p>Оцениваются действия оператора.</p>
+        <button className="primary-button" onClick={onEvaluate}>Оценить диалог</button>
         {state.data.synthetic && <p className="synthetic-note">Тестовые данные — не AI-оценка</p>}
       </div>
       <div className="transcript">

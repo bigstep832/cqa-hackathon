@@ -5,6 +5,10 @@ export type ConversationList = components['schemas']['ConversationList'];
 export type ImportRequest = components['schemas']['ConversationImportRequest'];
 export type ImportResponse = components['schemas']['ImportResponse'];
 export type ConversationQuery = NonNullable<paths['/api/v1/conversations']['get']['parameters']['query']>;
+export type ChecklistList = components['schemas']['ChecklistList'];
+export type ChecklistVersion = components['schemas']['ChecklistVersion'];
+export type Evaluation = components['schemas']['Evaluation'];
+export type EvaluationRequest = components['schemas']['EvaluationCreateRequest'];
 type ErrorField = components['schemas']['ErrorField'];
 export type Transport = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -61,6 +65,22 @@ export function createApiClient(transport: Transport = (url, init) => fetch(url,
     },
     getConversationVersion(id: string, signal?: AbortSignal) {
       return request<ConversationVersion>(`/api/v1/conversation-versions/${encodeURIComponent(id)}`, { signal });
+    },
+    listChecklists(signal?: AbortSignal) {
+      return request<ChecklistList>('/api/v1/checklists', { signal });
+    },
+    getChecklistVersion(id: string, signal?: AbortSignal) {
+      return request<ChecklistVersion>(`/api/v1/checklist-versions/${encodeURIComponent(id)}`, { signal });
+    },
+    createEvaluation(body: EvaluationRequest, idempotencyKey: string, signal?: AbortSignal) {
+      return request<Evaluation>('/api/v1/evaluations', {
+        method: 'POST', signal,
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+        body: JSON.stringify(body),
+      });
+    },
+    getEvaluation(id: string, signal?: AbortSignal) {
+      return request<Evaluation>(`/api/v1/evaluations/${encodeURIComponent(id)}`, { signal });
     },
     // Raw JSON is preserved so backend validation can detect duplicate properties.
     importConversations(body: ImportRequest | string, signal?: AbortSignal) {
