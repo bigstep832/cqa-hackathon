@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from anyio.from_thread import start_blocking_portal
 from fastapi import FastAPI
 from pydantic import TypeAdapter
 from sqlalchemy import Connection, text
@@ -185,15 +186,20 @@ async def run_claimed(
             if plan_id != current_id:
                 raise ValueError("Authorized plan changed")
             settings = resolve_settings(request, plan)
+            # Each adapter records a ProviderCall on its own timeout. Leave enough of the
+            # overall job deadline for retries and recording the final timeout/error.
+            attempt_seconds = max(1, (settings.timeout_seconds - 1) // plan.max_attempts)
             case = EvaluationInput(
-                conversation=conversation, checklist=checklist, settings=settings
+                conversation=conversation,
+                checklist=checklist,
+                settings=settings.model_copy(update={"timeout_seconds": attempt_seconds}),
             )
             provider = live_provider(case, current_id, plan)
         async with asyncio.timeout(settings.timeout_seconds):
             output = await provider.evaluate(case)
+        calls = output.metadata.calls
         validate_output(case, output)
         result = score(checklist, output.answers)
-        calls = output.metadata.calls
         completed = evaluation.model_copy(
             update={
                 "status": "succeeded",
@@ -250,6 +256,17 @@ async def work() -> None:
             await asyncio.sleep(0.15)
 
 
+async def isolated_worker() -> None:
+    # SQLite reservations inside an adapter are synchronous. Keep them off the HTTP
+    # event loop and out of the other worker's timeout/retry scheduler.
+    with start_blocking_portal(name="cqa-evaluation-worker") as portal:
+        task = portal.start_task_soon(work)
+        try:
+            await asyncio.wrap_future(task)
+        finally:
+            task.cancel()
+
+
 @contextmanager
 def worker_lock() -> Iterator[None]:
     """One owner of recovery/workers per on-disk DB, including across uvicorn processes."""
@@ -285,7 +302,7 @@ async def workflow_lifespan(app: FastAPI) -> AsyncIterator[None]:
         initialize_workflow()
         recover_interrupted_jobs()
         async with asyncio.TaskGroup() as group:
-            workers = [group.create_task(work()) for _ in range(2)]
+            workers = [group.create_task(isolated_worker()) for _ in range(2)]
             try:
                 yield
             finally:

@@ -2,8 +2,10 @@
 
 import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
+from threading import Event
 from time import monotonic, sleep
 
 import httpx
@@ -13,12 +15,18 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.api.errors import ApiError
-from app.contracts.models import ConversationImportRequest, EvaluationCreateRequest
+from app.contracts.models import (
+    ConversationImportRequest,
+    EvaluationCreateRequest,
+    EvaluationMetadata,
+    EvaluationOutput,
+    ProviderCall,
+)
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
 from app.evaluation.factory import create_provider
 from app.services import jobs, live_workflow
 from app.storage.conversations import import_conversations
-from app.storage.database import get_engine
+from app.storage.database import get_engine, write_transaction
 from app.storage.workflow import get_calls, get_evaluation, get_plan_id, initialize_workflow
 
 
@@ -98,6 +106,144 @@ def test_reserve_before_call_and_do_not_refund_after_failures(database, tmp_path
     assert all(get_calls(item.id) == () for item in evaluations)
     with get_engine().connect() as db:
         assert tuple(db.execute(text("SELECT cases,attempts FROM live_limits")).one()) == (2, 1)
+
+
+def test_transport_timeouts_keep_real_attempt_history(database, tmp_path, monkeypatch):
+    path = install_plan(tmp_path, monkeypatch)
+    plan = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({**plan, "max_attempts": 2, "max_requests": 2}), encoding="utf-8")
+    resolve = jobs.resolve_settings
+    monkeypatch.setattr(
+        jobs,
+        "resolve_settings",
+        lambda *args: resolve(*args).model_copy(update={"timeout_seconds": 4}),
+    )
+    requests = []
+
+    async def expire(request):
+        requests.append(request.url.path)
+        await asyncio.sleep(10)
+        pytest.fail("The adapter should have timed out")
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(expire)) as client:
+            monkeypatch.setattr(
+                live_workflow,
+                "create_provider",
+                lambda cfg, *, on_attempt: create_provider(
+                    cfg, client=client, on_attempt=on_attempt
+                ),
+            )
+            item = jobs.create_evaluation(request("live"))
+            await jobs.run_claimed(*jobs.claim_job())
+            return get_evaluation(item.id), get_calls(item.id)
+
+    result, calls = asyncio.run(run())
+    assert result.status == "failed" and result.failure.code == "PROVIDER_TIMEOUT"
+    assert len(requests) == 2
+    assert [call.attempt for call in calls] == [1, 2]
+    assert all(call.model == plan["model"] and call.latency_ms > 0 for call in calls)
+
+
+def test_postprocessing_failure_preserves_reported_usage(database, tmp_path, monkeypatch):
+    install_plan(tmp_path, monkeypatch)
+    reported = ProviderCall(
+        provider="local",
+        model="synthetic-transport",
+        purpose="evaluate",
+        attempt=1,
+        latency_ms=12,
+        input_tokens=8,
+        output_tokens=4,
+    )
+
+    def factory(config, *, on_attempt):
+        class IncompleteOutput:
+            async def evaluate(self, case):
+                on_attempt()
+                return EvaluationOutput(
+                    answers=load_synthetic_answers()[:1],
+                    metadata=EvaluationMetadata(
+                        mode="live",
+                        provider=reported.provider,
+                        model=reported.model,
+                        instruction_version="test",
+                        pipeline_version="test",
+                        calls=(reported,),
+                    ),
+                )
+
+        return IncompleteOutput()
+
+    monkeypatch.setattr(live_workflow, "create_provider", factory)
+    item = jobs.create_evaluation(request("live"))
+    asyncio.run(jobs.run_claimed(*jobs.claim_job()))
+    assert get_evaluation(item.id).status == "failed"
+    assert get_evaluation(item.id).output is None
+    assert get_calls(item.id) == (reported,)
+
+
+def test_sqlite_reservation_wait_does_not_block_http_loop(database, tmp_path, monkeypatch):
+    install_plan(tmp_path, monkeypatch)
+    # The import writer acquires a real SQLite write lock between the worker's claim
+    # and its case reservation, then another HTTP request must succeed during that wait.
+    at_reservation, writer_active, release, writer_finished = (Event() for _ in range(4))
+    reserve = jobs.live_provider
+
+    def reserve_during_import(*args):
+        at_reservation.set()
+        assert writer_active.wait(3)
+        return reserve(*args)
+
+    def concurrent_import():
+        assert at_reservation.wait(3)
+        with write_transaction():
+            writer_active.set()
+            release.wait(3)
+        writer_finished.set()
+
+    class Offline:
+        async def evaluate(self, case):
+            raise ValueError("Synthetic unavailable transport")
+
+    monkeypatch.setattr(live_workflow, "create_provider", lambda *a, **kw: Offline())
+    monkeypatch.setattr(jobs, "live_provider", reserve_during_import)
+    jobs.create_evaluation(request("live"))
+    app = FastAPI(lifespan=jobs.workflow_lifespan)
+
+    @app.get("/status")
+    async def status():
+        return {"writer_active": writer_active.is_set() and not writer_finished.is_set()}
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        writer = pool.submit(concurrent_import)
+        with TestClient(app) as client:
+            try:
+                assert writer_active.wait(3)
+                assert client.get("/status").json() == {"writer_active": True}
+            finally:
+                release.set()
+        writer.result()
+
+
+def test_shutdown_joins_active_worker_before_recovery(database, monkeypatch):
+    started, cancelled = Event(), Event()
+
+    class Pending:
+        async def evaluate(self, case):
+            started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cancelled.set()
+
+    monkeypatch.setattr(jobs, "create_provider", Pending)
+    queued = jobs.create_evaluation(request("mock"))
+    with TestClient(FastAPI(lifespan=jobs.workflow_lifespan)):
+        assert started.wait(3)
+        assert get_evaluation(queued.id).status == "running"
+    assert cancelled.is_set()
+    assert get_evaluation(queued.id).failure.code == "WORKER_INTERRUPTED"
 
 
 def test_changed_plan_cannot_run_queued_job(database, tmp_path, monkeypatch):
