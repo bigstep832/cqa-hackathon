@@ -159,7 +159,7 @@ def test_local_json_mode_is_explicit_and_validated(base_url: str) -> None:
 
 @pytest.mark.parametrize("base_url", [
     "https://example.com/v1", "http://127.0.0.2/v1", "http://localhost.evil.test/v1",
-    "http://user:secret@localhost/v1", "http://localhost/v1?api_key=secret",
+    "http://user:synthetic@localhost/v1", "http://localhost/v1?option=synthetic",
     "http://localhost/v1#secret", "http://localhost/v1?","ftp://localhost/v1",
     "http://localhost/other", "http://localhost:0/v1", "http://localhost:99999/v1",
     "http://localhost/v1\n", "http://[::1%25eth0]/v1",

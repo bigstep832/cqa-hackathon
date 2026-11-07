@@ -16,7 +16,13 @@ Scorer реализован отдельно от настоящего AI; A о�
 Команды: `python scripts/verify.py`, `npm --prefix frontend run test:e2e`.
 Не переносить статус bootstrap на все строки приёмки MVP.
 
-## A-01 · A · P0 · planned — Baseline и первый воспроизводимый eval
+## A-01 · A · P0 · offline-ready — Baseline и первый воспроизводимый eval
+
+Офлайн-часть реализована: общий structured pipeline, фабрика mock/Gemini/OpenAI/local,
+транспортные тесты, формы ручной разметки, split/finalize и отдельный ограниченный runner.
+См. [A01_OFFLINE_HANDOFF](A01_OFFLINE_HANDOFF.md). Реальные вызовы и accuracy ещё не
+проверены; live ожидает согласования модели, бюджета и передачи данных.
+Это не статус готовности всего MVP или API workflow.
 
 - Цель: один настоящий генеративный EvaluationProvider, соответствующий контракту.
 - Каталоги: `backend/app/evaluation/`, `backend/tests/evaluation/`, `evals/`;
