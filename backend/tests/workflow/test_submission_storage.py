@@ -5,9 +5,12 @@ import json
 import os
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
+from threading import Event
+from time import monotonic, sleep
 
 import httpx
 import pytest
@@ -136,6 +139,72 @@ asyncio.run(jobs.run_claimed(*jobs.claim_job()))
         cli.release("validate", selection_file, True)
         cli.release("export", selection_file, True)
         assert path.read_bytes() == sealed
+    finally:
+        get_engine().dispose()
+
+
+def test_cancellation_delayed_by_sqlite_keeps_completed_and_interrupted_calls(tmp_path, monkeypatch):
+    selection_file, path, selected = prepare_release(tmp_path, monkeypatch, attempts=2)
+    received = []
+
+    async def cancel_during_contention():
+        streaming = asyncio.Event()
+
+        class StalledBody(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                streaming.set()
+                await asyncio.Event().wait()
+                yield b""
+
+        def reply(request):
+            received.append(request.url.path)
+            if len(received) == 1:
+                # An invalid completion triggers the adapter's normal retry; its measured usage survives.
+                return httpx.Response(200, json={"usage": {"prompt_tokens": 17, "completion_tokens": 3}})
+            return httpx.Response(200, stream=StalledBody())
+
+        monkeypatch.setattr(live_workflow, "outbound_transport", lambda: httpx.MockTransport(reply))
+        job = asyncio.create_task(jobs.run_claimed(*jobs.claim_job()))
+        await asyncio.wait_for(streaming.wait(), timeout=5)
+
+        writer_acquired, wait_started = Event(), Event()
+
+        def hold_write_lock():
+            with write_transaction():
+                writer_acquired.set()
+                assert wait_started.wait(5)
+                sleep(2)
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            holder = pool.submit(hold_write_lock)
+            assert await asyncio.to_thread(writer_acquired.wait, 3)
+            # The job's own 60s budget is unchanged. This explicit caller cancellation
+            # becomes runnable while SQLite is synchronously waiting for the writer.
+            asyncio.get_running_loop().call_later(0.05, job.cancel)
+            start = monotonic()
+            wait_started.set()
+            with write_transaction():
+                assert monotonic() - start >= 1.8
+            holder.result()
+        with pytest.raises(asyncio.CancelledError):
+            await job
+
+    try:
+        asyncio.run(cancel_during_contention())
+        jobs.recover_interrupted_jobs()
+        job_id = next(iter(selected.jobs.values()))
+        assert get_evaluation(job_id).failure.code == "WORKER_INTERRUPTED"
+        assert len(received) == 2
+        first, second = get_calls(job_id)
+        assert [first.attempt, second.attempt] == [1, 2]
+        assert (first.input_tokens, first.output_tokens) == (17, 3)
+        assert second.latency_ms >= 1800 and second.input_tokens is None and second.output_tokens is None
+        assert [d.attempt for d in get_dispatches(job_id)] == [1, 2]
+        with get_engine().connect() as db:
+            assert tuple(db.exec_driver_sql("SELECT cases, attempts FROM live_limits").one()) == (1, 2)
+        cli.release("export", selection_file, True)
+        cli.release("validate", selection_file, True)
+        assert all(row["status"] == "error" for row in read_json(path)["results"])
     finally:
         get_engine().dispose()
 

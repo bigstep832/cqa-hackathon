@@ -76,6 +76,7 @@ class DispatchTransport(httpx.AsyncBaseTransport):
         self.attempt_deadline = 0.0
         self.reserved = 0
         self.dispatched = 0
+        self.sent_at: float | None = None
         self.transport = outbound_transport()
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
@@ -101,7 +102,40 @@ class DispatchTransport(httpx.AsyncBaseTransport):
                 },
             )
         self.dispatched = self.reserved
+        self.sent_at = asyncio.get_running_loop().time()
         return await self.transport.handle_async_request(request)
+
+    def record_call(self, call: ProviderCall, *, interrupted: bool = False) -> None:
+        # The adapter supplies the full latency/usage on ordinary success or error.
+        # Cancellation only fills a missing measurement for an actual dispatch.
+        with write_transaction() as db:
+            db.execute(
+                text("""UPDATE evaluation_dispatches SET completed_call=:call
+                WHERE evaluation_id=:id AND attempt=:attempt AND provider=:provider AND model=:model
+                AND (:interrupted=0 OR completed_call IS NULL)"""),
+                {
+                    "call": call.model_dump_json(),
+                    "id": self.evaluation_id,
+                    "attempt": call.attempt,
+                    "provider": call.provider,
+                    "model": call.model,
+                    "interrupted": int(interrupted),
+                },
+            )
+
+    def record_interruption(self, attempt: int) -> None:
+        if self.dispatched == attempt and self.sent_at is not None:
+            elapsed = asyncio.get_running_loop().time() - self.sent_at
+            self.record_call(
+                ProviderCall(
+                    provider=self.plan.provider,
+                    model=self.plan.model,
+                    purpose="evaluate",
+                    attempt=attempt,
+                    latency_ms=elapsed * 1000,
+                ),
+                interrupted=True,
+            )
 
     async def aclose(self) -> None:
         await self.transport.aclose()
@@ -134,6 +168,11 @@ class AttemptClient(httpx.AsyncClient):
             async with asyncio.timeout_at(self.dispatch.attempt_deadline):
                 async with super().stream(*args, **kwargs) as response:
                     yield response
+        except asyncio.CancelledError:
+            # A delayed event loop can process both the HTTP and job cancellation
+            # together. The outer deadline then prevents the adapter's on_call hook.
+            self.dispatch.record_interruption(index + 1)
+            raise
         except TimeoutError:
             raise httpx.ReadTimeout("HTTP attempt deadline exceeded") from None
 
@@ -178,21 +217,6 @@ async def live_provider(
 
         transport.reserved += 1
 
-    def record_call(call: ProviderCall) -> None:
-        with write_transaction() as db:
-            db.execute(
-                text("""UPDATE evaluation_dispatches SET completed_call=:call
-                WHERE evaluation_id=:id AND attempt=:attempt AND provider=:provider AND model=:model
-                AND completed_call IS NULL"""),
-                {
-                    "call": call.model_dump_json(),
-                    "id": evaluation_id,
-                    "attempt": call.attempt,
-                    "provider": call.provider,
-                    "model": call.model,
-                },
-            )
-
     config = ProviderConfig(
         provider=plan.provider,
         api_key=None if plan.provider == "local" else os.environ.get("MODEL_API_KEY"),
@@ -202,4 +226,6 @@ async def live_provider(
         max_output_tokens=plan.max_output_tokens,
     )
     async with AttemptClient(transport, deadline) as client:
-        yield create_provider(config, client=client, on_attempt=before_attempt, on_call=record_call)
+        yield create_provider(
+            config, client=client, on_attempt=before_attempt, on_call=transport.record_call
+        )
