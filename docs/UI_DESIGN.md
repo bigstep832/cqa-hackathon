@@ -55,6 +55,15 @@ OpenAPI генерируется backend-скриптом. `npm run generate:api
 требования openapi-typescript `^5.x`; произвольное обновление до 6/7 нарушает peers.
 Node 24 — среда команды; глобальные инструменты не обновлялись.
 
+Для dev-зависимостей задан точечный override `minimatch@>=7.0.0 <11.0.1` на
+`11.0.5`: [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249)
+исправлен начиная с 11.0.1, а актуальные ESLint/typescript-eslint пока требуют 10.x.
+Это временное межмажорное исключение, проверенное на Node 24: ESLint обрабатывает
+те же 10 файлов, typecheck, lint, 4 unit-теста и build проходят. Полный `npm audit`
+2026-11-07 после изменения: 0 уязвимостей. Неуязвимый minimatch 5.x у Redocly не
+заменяется. Удалить override после перехода upstream-зависимостей на исправленный
+диапазон и повторной проверки lockfile; не применять `npm audit fix --force`.
+
 Официальные источники: [Vite](https://vite.dev/guide/),
 [openapi-typescript](https://openapi-ts.dev/introduction),
 [Vitest](https://vitest.dev/guide/).
