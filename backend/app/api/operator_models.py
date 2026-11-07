@@ -47,6 +47,8 @@ class OperatorProfile(FrozenModel):
     measured_calls: int
     total_call_seconds: int
     average_call_seconds: float | None
+    timed_call_spans: int
+    average_call_span_seconds: float | None
     operator_messages: int
     client_messages: int
     first_reply_count: int

@@ -83,6 +83,25 @@ def _timestamp(value: str) -> datetime | timedelta | None:
     return None
 
 
+def _span_seconds(messages: tuple[Message, ...]) -> float | None:
+    """Elapsed time between distinct turns with comparable, ordered timestamps throughout."""
+    if len(messages) < 2:
+        return None
+    clocks = [_timestamp(msg.timestamp_raw) for msg in messages]
+    if any(clock is None for clock in clocks):
+        return None
+    if all(isinstance(clock, datetime) for clock in clocks):
+        dates = [clock for clock in clocks if isinstance(clock, datetime)]
+        if len({date.tzinfo is None for date in dates}) > 1 or dates != sorted(dates):
+            return None
+        return (dates[-1] - dates[0]).total_seconds()
+    if all(isinstance(clock, timedelta) for clock in clocks):
+        elapsed = [clock for clock in clocks if isinstance(clock, timedelta)]
+        if elapsed == sorted(elapsed):
+            return (elapsed[-1] - elapsed[0]).total_seconds()
+    return None
+
+
 def first_reply(messages: tuple[Message, ...]) -> tuple[bool, float | None]:
     """Return (unanswered, measured delay). An unreadable clock never implies no reply."""
     first = next((i for i, msg in enumerate(messages) if msg.speaker == "client"), None)
@@ -93,20 +112,7 @@ def first_reply(messages: tuple[Message, ...]) -> tuple[bool, float | None]:
     )
     if reply is None:
         return True, None
-    # Validate comparable, nondecreasing clocks along the entire first client→reply span.
-    clocks = [_timestamp(msg.timestamp_raw) for msg in messages[first : reply + 1]]
-    if any(clock is None for clock in clocks):
-        return False, None
-    if all(isinstance(clock, datetime) for clock in clocks):
-        dates = [clock for clock in clocks if isinstance(clock, datetime)]
-        if len({date.tzinfo is None for date in dates}) > 1 or dates != sorted(dates):
-            return False, None
-        return False, (dates[-1] - dates[0]).total_seconds()
-    if all(isinstance(clock, timedelta) for clock in clocks):
-        elapsed = [clock for clock in clocks if isinstance(clock, timedelta)]
-        if elapsed == sorted(elapsed):
-            return False, (elapsed[-1] - elapsed[0]).total_seconds()
-    return False, None
+    return False, _span_seconds(messages[first : reply + 1])
 
 
 def get_operator_profile(operator_id: str) -> OperatorProfile:
@@ -152,11 +158,16 @@ def get_operator_profile(operator_id: str) -> OperatorProfile:
     conversations = []
     speakers: Counter[str] = Counter()
     reply_delays: list[float] = []
+    call_spans: list[float] = []
     qualities: dict[tuple[str, str], list[float]] = {}
     unanswered_count = 0
     flagged_count = 0
     for row in rows:
         version = ConversationVersion.model_validate_json(row.snapshot)
+        if version.channel == "voice call":
+            call_span = _span_seconds(version.messages)
+            if call_span is not None:
+                call_spans.append(call_span)
         speakers.update(msg.speaker for msg in version.messages)
         unanswered, delay = first_reply(version.messages)
         unanswered_count += unanswered
@@ -215,6 +226,8 @@ def get_operator_profile(operator_id: str) -> OperatorProfile:
         measured_calls=len(durations),
         total_call_seconds=sum(durations),
         average_call_seconds=fmean(durations) if durations else None,
+        timed_call_spans=len(call_spans),
+        average_call_span_seconds=fmean(call_spans) if call_spans else None,
         operator_messages=speakers["operator"],
         client_messages=speakers["client"],
         first_reply_count=len(reply_delays),

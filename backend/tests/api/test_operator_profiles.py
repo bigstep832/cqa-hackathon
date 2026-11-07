@@ -116,6 +116,46 @@ def test_empty_directory_and_missing_operator(api):
     assert api.get("/api/v1/operators/unassigned/profile").status_code == 404
 
 
+def test_complete_transcript_spans_are_separate_from_measured_call_durations(api):
+    # An exact zero and a six-second international timestamp span both count.
+    ingest(
+        api,
+        "zero",
+        "A",
+        "voice call",
+        [("client", "00:01"), ("operator", "00:01")],
+        "agent-a",
+        duration_seconds=40,
+    )
+    ingest(
+        api,
+        "international",
+        "A",
+        "voice call",
+        [
+            ("system", "2026-11-07T10:00:00+05:00"),
+            ("client", "2026-11-07T05:00:01Z"),
+            ("operator", "2026-11-07T05:00:03Z"),
+            ("bot", "2026-11-07T05:00:06Z"),
+        ],
+        "agent-a",
+    )
+    for identifier, stamps in (
+        ("single", ["00:00"]),
+        ("missing", ["00:00", "unknown", "00:10"]),
+        ("reverse", ["00:00", "00:11", "00:10"]),
+        ("mixed", ["00:00", "2026-11-07T05:00:06Z"]),
+    ):
+        ingest(
+            api, identifier, "A", "voice call", [("client", stamp) for stamp in stamps], "agent-a"
+        )
+    ingest(api, "chat", "A", "agent chat", [("client", "00:00"), ("operator", "00:30")], "agent-a")
+    profile = api.get("/api/v1/operators/agent-a/profile").json()
+    assert (profile["timed_call_spans"], profile["average_call_span_seconds"]) == (2, 3)
+    assert (profile["measured_calls"], profile["average_call_seconds"]) == (1, 40)
+    assert sum(c["duration_seconds"] is not None for c in profile["conversations"]) == 1
+
+
 def test_flag_is_counted_even_with_every_scored_answer_na(api):
     sample = load_synthetic_input().checklist
     definition = sample.model_dump(
@@ -216,6 +256,7 @@ def test_profile_latest_families_attribution_and_effective_live_scores(api):
     assert criteria["C06"]["average_quality"] == 70
     assert "C08" not in criteria
     unknown = api.get("/api/v1/operators/agent-b/profile").json()
+    assert unknown["timed_call_spans"] == 0 and unknown["average_call_span_seconds"] is None
     assert unknown["average_call_seconds"] is None and unknown["total_call_seconds"] == 0
     assert unknown["average_effective_score"] is None and unknown["criteria"] == []
 
