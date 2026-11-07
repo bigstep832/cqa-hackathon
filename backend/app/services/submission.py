@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, NoReturn
+from unicodedata import category
 
 from pydantic import StrictStr
 
@@ -78,6 +79,12 @@ def _public_text(value: str) -> str:
             or any(ord(c) < 32 for c in value)):
         raise SubmissionError("Potentially sensitive public text. Review private input.")
     return value
+
+
+def _public_rationale(value: str) -> str:
+    if any(category(character) == "Cc" and character not in "\t\r\n" for character in value):
+        raise SubmissionError("Unsupported control character in rationale.")
+    return _public_text(" ".join(value.split()))
 
 
 def _error_row(conversation_id: str, reason: str) -> dict[str, Any]:
@@ -152,8 +159,8 @@ def _result(
             value = int(value)
         evidence = {turn for ref in answer.evidence
                     for turn in range(positions[ref.start_message_id], positions[ref.end_message_id] + 1)}
-        rationale = _public_text(answer.explanation)
-        normalized = " ".join(rationale.casefold().split())
+        rationale = _public_rationale(answer.explanation)
+        normalized = rationale.casefold()
         if (any(part in normalized for part in substantial_text)
                 or len(complete_transcript) >= 30 and complete_transcript in normalized):
             raise SubmissionError("Rationale reproduces private transcript text.")

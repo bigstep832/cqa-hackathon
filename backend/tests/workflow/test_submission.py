@@ -221,13 +221,52 @@ def test_official_team_name_is_exact(package, name):
 
 @pytest.mark.parametrize("text", ["Contact person@example.test", "Call +7 (700) 111 22 33",
                                   "https://example.test/private-path", "token=private",
-                                  "github_pat_" + "x" * 60])
+                                  "github_pat_" + "x" * 60,
+                                  "Bearer\r\n\tprivate-token", "Call +7\n(700)\t111 22 33"])
 def test_sensitive_rationale_stops_before_writing(package, text):
     selection, manifest, checklist, jobs = package
     original = jobs["fixture-job-0"].evaluation.output
     answers = list(original.answers)
     answers[0] = answers[0].model_copy(update={"explanation": text})
     change_job(jobs, output=original.model_copy(update={"answers": tuple(answers)}))
+    with pytest.raises(SubmissionError, match="sensitive"):
+        build_submission(selection, manifest, checklist, jobs)
+
+
+def test_multiline_rationale_is_normalized_only_in_verified_export(package, tmp_path):
+    selection, manifest, checklist, jobs = package
+    original = jobs["fixture-job-0"].evaluation.output
+    answers = list(original.answers)
+    explanation = "  Представился.\r\n\tОтветил\n на\u00a0  вопрос.\t"
+    answers[0] = answers[0].model_copy(update={"explanation": explanation})
+    change_job(jobs, output=original.model_copy(update={"answers": tuple(answers)}))
+    document = build_submission(selection, manifest, checklist, jobs)
+    path = tmp_path / "results.json"
+    write_verified(path, document)
+    validate_file(path, build_submission(selection, manifest, checklist, jobs))
+    assert read_json(path)["results"][0]["criteria"][0]["rationale"] == "Представился. Ответил на вопрос."
+    assert jobs["fixture-job-0"].evaluation.output.answers[0].explanation == explanation
+
+
+@pytest.mark.parametrize("explanation", ["Нет\x01приветствия", "Нет\vприветствия", " \r\n \t"])
+def test_unsafe_controls_and_blank_rationale_block_release(package, explanation):
+    selection, manifest, checklist, jobs = package
+    original = jobs["fixture-job-0"].evaluation.output
+    answers = list(original.answers)
+    answers[0] = answers[0].model_copy(update={"explanation": explanation})
+    change_job(jobs, output=original.model_copy(update={"answers": tuple(answers)}))
+    with pytest.raises(SubmissionError):
+        build_submission(selection, manifest, checklist, jobs)
+
+
+def test_whitespace_in_model_identifier_is_not_normalized(package):
+    selection, manifest, checklist, jobs = package
+    selected = jobs["fixture-job-0"]
+    model = "fixture\nmodel"
+    jobs["fixture-job-0"] = replace(
+        selected, calls=(selected.calls[0].model_copy(update={"model": model}),),
+        request=selected.request.model_copy(update={"model": model}),
+    )
     with pytest.raises(SubmissionError, match="sensitive"):
         build_submission(selection, manifest, checklist, jobs)
 
@@ -241,14 +280,14 @@ def test_private_id_never_rewritten_and_transcript_dump_blocked(package):
     manifest[0] = conversation
     output = jobs["fixture-job-0"].evaluation.output
     answers = list(output.answers)
-    answers[0] = answers[0].model_copy(update={"explanation": " ".join(m.text for m in conversation.messages)})
+    answers[0] = answers[0].model_copy(update={"explanation": "\r\n\t".join(m.text for m in conversation.messages)})
     change_job(jobs, output=output.model_copy(update={"answers": tuple(answers)}))
     with pytest.raises(SubmissionError, match="transcript"):
         build_submission(selection, manifest, checklist, jobs)
 
 
 @pytest.mark.parametrize("identifier", ["Bearer synthetic-fixture-credential",
-                                         "github_pat_" + "x" * 60])
+                                         "github_pat_" + "x" * 60, "test\nid"])
 def test_secret_bearing_external_id_blocks_release(package, identifier):
     selection, manifest, checklist, jobs = package
     manifest[0] = manifest[0].model_copy(update={"conversation_id": identifier})
