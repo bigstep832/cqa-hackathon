@@ -4,7 +4,9 @@ import asyncio
 import json
 from datetime import date
 from pathlib import Path
+from time import monotonic, sleep
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -12,7 +14,8 @@ from sqlalchemy import text
 
 from app.api.errors import ApiError
 from app.contracts.models import ConversationImportRequest, EvaluationCreateRequest
-from app.evaluation.demo import load_synthetic_input
+from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
+from app.evaluation.factory import create_provider
 from app.services import jobs, live_workflow
 from app.storage.conversations import import_conversations
 from app.storage.database import get_engine
@@ -174,6 +177,139 @@ def test_replacement_between_reservation_and_transport_blocks_attempt(
     assert get_evaluation(queued.id).status == "failed" and not transported
     with get_engine().connect() as db:
         assert tuple(db.execute(text("SELECT cases,attempts FROM live_limits")).one()) == (1, 0)
+
+
+def test_checklist_edits_reach_worker_and_preserve_prior_evaluation(
+    database, tmp_path, monkeypatch
+):
+    from app.main import app
+
+    plan_path = install_plan(tmp_path, monkeypatch)
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan_path.write_text(json.dumps({**plan, "max_requests": 2}), encoding="utf-8")
+    captured = []
+    schemas = []
+    fixture = load_synthetic_input()
+    evidence = load_synthetic_answers()[0].evidence[0]
+
+    def synthetic_completion(request):
+        schema = json.loads(request.content)["response_format"]["json_schema"]["schema"]
+        expected_ids = schema["properties"]["answers"]["required"]
+        schemas.append(expected_ids)
+        answers = {
+            item.criterion_id: {
+                "answer": item.answer.model_dump(mode="json"),
+                "explanation": item.explanation,
+                "evidence": [
+                    e.model_dump(mode="json", exclude={"conversation_version_id"})
+                    for e in item.evidence
+                ],
+            }
+            for item in load_synthetic_answers()
+        }
+        if "C09" in expected_ids:
+            answers["C01"]["answer"] = {"type": "scale", "value": 2}
+            answers["C09"] = {
+                "answer": {"type": "boolean", "value": True},
+                "explanation": "Синтетический девятый критерий.",
+                "evidence": [evidence.model_dump(mode="json", exclude={"conversation_version_id"})],
+            }
+        message = {"role": "assistant", "content": json.dumps({"answers": answers})}
+        return httpx.Response(
+            200, json={"choices": [{"finish_reason": "stop", "message": message}]}
+        )
+
+    def capture_provider(config, *, on_attempt):
+        class ObservedAdapter:
+            async def evaluate(self, case):
+                captured.append(case)
+                async with httpx.AsyncClient(
+                    transport=httpx.MockTransport(synthetic_completion)
+                ) as client:
+                    return await create_provider(
+                        config, client=client, on_attempt=on_attempt
+                    ).evaluate(case)
+
+        return ObservedAdapter()
+
+    monkeypatch.setattr(live_workflow, "create_provider", capture_provider)
+
+    def evaluate(client, version_id):
+        started = client.post(
+            "/api/v1/evaluations",
+            json={
+                "mode": "live",
+                "conversation_version_id": fixture.conversation.id,
+                "checklist_version_id": version_id,
+            },
+        )
+        assert started.status_code == 202
+        url = "/api/v1/evaluations/" + started.json()["id"]
+        deadline = monotonic() + 5
+        while True:
+            response = client.get(url)
+            if response.json()["status"] not in {"queued", "running"} or monotonic() >= deadline:
+                break
+            sleep(0.02)
+        assert response.json()["status"] == "succeeded", response.text
+        return url, response
+
+    original_definition = fixture.checklist.model_dump(
+        mode="json", exclude={"id", "checklist_id", "version", "created_at"}
+    )
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        first = client.post("/api/v1/checklists", json=original_definition)
+        assert first.status_code == 201
+        original = first.json()
+        old_url, old_response = evaluate(client, original["id"])
+        old_snapshot = client.get("/api/v1/checklist-versions/" + original["id"]).content
+        first_criterion = original_definition["criteria"][0]
+        revised_criterion = {
+            **first_criterion,
+            "answer_type": "scale",
+            "weight": "36",
+            "allow_na": True,
+            "na_condition": "Сценарий не требует приветствия.",
+            "options": [
+                {
+                    "value": value,
+                    "label": str(value),
+                    "description": "Синтетическая ступень.",
+                    "quality": quality,
+                }
+                for value, quality in ((0, "0"), (2, "0.5"), (4, "1"))
+            ],
+        }
+        ninth = {**first_criterion, "id": "C09", "title": "Новый критерий", "weight": "3"}
+        updated = {
+            **original_definition,
+            "criteria": [revised_criterion, *original_definition["criteria"][1:], ninth],
+        }
+        revisions_url = "/api/v1/checklists/" + original["checklist_id"] + "/versions"
+        second = client.post(revisions_url, json=updated)
+        assert second.status_code == 201 and second.json()["version"] == 2
+        # The submitted version is already historical by the time its job starts.
+        latest = client.post(revisions_url, json={**updated, "name": "Следующая редакция"})
+        assert latest.status_code == 201 and latest.json()["version"] == 3
+        _, current = evaluate(client, second.json()["id"])
+        assert [case.checklist.id for case in captured] == [original["id"], second.json()["id"]]
+        assert captured[1].checklist.model_dump(mode="json") == second.json()
+        assert schemas == [
+            [item["id"] for item in definition["criteria"]]
+            for definition in (original_definition, updated)
+        ]
+        output = current.json()["output"]["answers"]
+        assert {item["criterion_id"] for item in output} == set(schemas[1])
+        assert next(item["answer"] for item in output if item["criterion_id"] == "C01") == {
+            "type": "scale",
+            "value": 2,
+        }
+        c01 = next(
+            c for c in current.json()["original_score"]["criteria"] if c["criterion_id"] == "C01"
+        )
+        assert c01["earned_points"] == "18" and c01["weight"] == "36"
+        assert client.get(old_url).content == old_response.content
+        assert client.get("/api/v1/checklist-versions/" + original["id"]).content == old_snapshot
 
 
 def test_lifespan_recovers_then_executes_queue(database):
