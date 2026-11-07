@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { components } from './api/generated/schema';
 import { fetchDemo, type DemoPayload } from './api/demo';
 import { formatDecimal } from './format';
+import { ConversationsScreen } from './ConversationsScreen';
 
 type LoadState =
   | { status: 'loading' }
@@ -22,6 +23,28 @@ function Mark({ small = false }: { small?: boolean }) {
 }
 
 export function App() {
+  const [view, setView] = useState<'conversations' | 'demo'>('conversations');
+  return <div className="app-shell">
+    <a className="skip-link" href="#main">Перейти к содержимому</a>
+    <aside className="sidebar" aria-label="Разделы CQA">
+      <a className="brand" href="#main" aria-label="CQA — проверка качества"><Mark /><span>CQA<span className="brand-caption">Качество диалогов</span></span></a>
+      <nav className="sidebar-section" aria-label="Рабочее пространство">
+        <span className="sidebar-label">Рабочее пространство</span>
+        <button className={`nav-link${view === 'conversations' ? ' nav-link--active' : ''}`} aria-pressed={view === 'conversations'} onClick={() => setView('conversations')}>Диалоги</button>
+        <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}>Демо · mock</button>
+      </nav>
+      <div className="sidebar-bottom"><p>DT20 · CQA</p><span className="muted">Диалоги и версии из серверного хранилища.</span></div>
+    </aside>
+    <main id="main" className="main" tabIndex={-1}>
+      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : 'Диалоги'}</p>
+        <h1>{view === 'demo' ? 'Проверка диалога' : 'Диалоги'}</h1></div></header>
+      {view === 'demo' ? <DemoScreen /> : <ConversationsScreen />}
+      <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
+    </main>
+  </div>;
+}
+
+export function DemoScreen() {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
@@ -44,26 +67,7 @@ export function App() {
     setAttempt(previous => previous + 1);
   }
 
-  return <div className="app-shell">
-    <a className="skip-link" href="#main">Перейти к содержимому</a>
-    <aside className="sidebar" aria-label="Разделы CQA">
-      <a className="brand" href="#main" aria-label="CQA — проверка качества"><Mark /><span>CQA<span className="brand-caption">Качество диалогов</span></span></a>
-      <div className="sidebar-section">
-        <span className="sidebar-label">Рабочее пространство</span>
-        <a className="nav-link nav-link--active" href="#main" aria-current="page"><span className="nav-symbol" aria-hidden="true">▤</span>Диалоги<span className="nav-count">{state.status === 'ready' ? '1' : '—'}</span></a>
-      </div>
-      <div className="sidebar-bottom">
-        <span className="stage-label"><span className="status-dot" />Этап 0</span>
-        <p>Общий каркас команды</p>
-        <span className="muted">AI-оценщик и рабочие процессы — следующие задачи.</span>
-      </div>
-    </aside>
-
-    <main id="main" className="main" tabIndex={-1}>
-      <header className="page-header">
-        <div><p className="breadcrumb">Диалоги <span aria-hidden="true">/</span> Тестовый пример</p><h1>Проверка диалога</h1></div>
-        <span className="stage-chip">Локальный прототип</span>
-      </header>
+  return <>
       <div className="demo-banner" role="note">
         <span className="banner-icon" aria-hidden="true">i</span>
         <div><strong>Тестовые данные — не AI-оценка</strong><p>Синтетический разговор и заранее заданные ответы для проверки интерфейса и расчёта.</p></div>
@@ -73,9 +77,7 @@ export function App() {
       {state.status === 'error' && <div className="state-panel state-panel--error" role="alert"><h2>Пример не загрузился</h2><p>{state.message}</p><p className="muted">Проверьте подключение к серверу и повторите загрузку.</p><button className="primary-button" onClick={retry}>Повторить загрузку</button></div>}
       {state.status === 'empty' && <div className="state-panel"><Mark small /><h2>Пока нет диалогов</h2><p>Сервер не вернул тестовый разговор.</p><button className="primary-button" onClick={retry}>Обновить</button></div>}
       {state.status === 'ready' && <ReviewWorkspace data={state.data} />}
-      <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
-    </main>
-  </div>;
+  </>;
 }
 
 function ReviewWorkspace({ data }: { data: DemoPayload }) {
@@ -168,6 +170,6 @@ function ReviewWorkspace({ data }: { data: DemoPayload }) {
       </section>
     </div>
     <div className="sr-only" role="status" aria-live="polite">{selectedCriterion ? `Показано доказательство для ${selectedCriterion}. Сообщений: ${highlightedIds.length}.` : ''}</div>
-    <section className="next-steps" aria-labelledby="next-heading"><h2 id="next-heading">Дальше в работе команды</h2><p>AI-оценщик, импорт новых наборов, редактор критериев и апелляции ещё не реализованы. Этот экран проверяет общий формат результата и переход к доказательствам.</p></section>
+    <section className="next-steps" aria-labelledby="next-heading"><h2 id="next-heading">Демонстрационный сценарий</h2><p>Этот экран проверяет формат тестового результата и переход к доказательствам. Список и ручной импорт доступны в разделе «Диалоги».</p></section>
   </>;
 }
