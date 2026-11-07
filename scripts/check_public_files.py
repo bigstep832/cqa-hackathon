@@ -13,7 +13,7 @@ SECRET_PATTERNS = (
         r"x-amz-signature|x-goog-signature)=[^\s\"'<>]+",
         re.I,
     ),
-    re.compile(r"(?:sk-[A-Za-z0-9_-]{25,}|gh[pousr]_[A-Za-z0-9]{30,})"),
+    re.compile(r"(?:sk-[A-Za-z0-9_-]{25,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{22,})"),
     re.compile(r"(?<![a-zA-Z0-9_-])AIza[A-Za-z0-9_-]{35}(?![a-zA-Z0-9_-])"),
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 )

@@ -66,6 +66,7 @@ def import_conversations(request: ConversationImportRequest) -> ImportResponse:
 
 
 @router.get("/api/v1/conversations", response_model=ConversationList, tags=["conversations"])
+@router.get("/api/v1/conversations/", include_in_schema=False)
 def list_conversations(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
@@ -76,11 +77,11 @@ def list_conversations(
 
 
 @router.get(
-    "/api/v1/conversations/{conversation_id}",
+    "/api/v1/conversations/{conversation_id:path}",
     response_model=ConversationVersion,
     tags=["conversations"],
 )
-def get_conversation(conversation_id: Identifier) -> ConversationVersion:
+def get_conversation(conversation_id: Annotated[str, Path(min_length=1)]) -> ConversationVersion:
     return conversations.get_conversation(conversation_id)
 
 

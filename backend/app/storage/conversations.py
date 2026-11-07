@@ -303,6 +303,8 @@ def list_conversations(
     with get_engine().connect() as connection:
         connection.exec_driver_sql("BEGIN")
         total = connection.scalar(select(func.count()).select_from(query.subquery())) or 0
+        if offset >= total:
+            return ConversationList(items=(), total=total, offset=offset, limit=limit)
         rows = connection.execute(
             query.order_by(_versions.c.conversation_id).offset(offset).limit(limit)
         )

@@ -3141,7 +3141,6 @@
             "name": "conversation_id",
             "required": true,
             "schema": {
-              "maxLength": 200,
               "minLength": 1,
               "title": "Conversation Id",
               "type": "string"

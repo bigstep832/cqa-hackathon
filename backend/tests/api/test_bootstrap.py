@@ -1,6 +1,7 @@
 """Checks of implemented bootstrap behavior, not claims about future workflows."""
 
 from collections.abc import Iterator
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -92,3 +93,23 @@ def test_pagination_and_language_are_validated(
     client: TestClient, query: str
 ) -> None:
     assert client.get(f"/api/v1/conversations?{query}").status_code == 422
+
+
+def test_imported_external_ids_round_trip_and_out_of_range_pages_are_empty(client: TestClient) -> None:
+    external_ids = ["case/RU-17", "c" * 201]
+    records = [
+        {"conversation_id": identifier, "channel": "agent chat", "language": "RU",
+         "transcript": [{"timestamp": "00:01", "speaker": "operator", "text": "Пример"}]}
+        for identifier in external_ids
+    ]
+    response = client.post("/api/v1/conversations/import",
+                           json={"dataset_group_id": "TEST", "records": records})
+    assert response.status_code == 200
+    for identifier, version in zip(external_ids, response.json()["conversation_version_ids"], strict=True):
+        detail = client.get("/api/v1/conversations/" + quote(identifier, safe=""))
+        assert detail.status_code == 200
+        assert (detail.json()["conversation_id"], detail.json()["id"]) == (identifier, version)
+    for path in ("/api/v1/conversations", "/api/v1/conversations/"):
+        page = client.get(path, params={"offset": 2**63, "limit": 5})
+        assert page.status_code == 200
+        assert page.json() == {"items": [], "total": 2, "offset": 2**63, "limit": 5}

@@ -18,6 +18,7 @@ def test_staged_provider_keys_signed_urls_media_and_db_sidecars(tmp_path, capsys
     files = {
         "notes.md": "ordinary public note",
         "provider.md": "test-key=" + "AI" + "za" + "Z" * 35,
+        "github.md": "test-key=" + "github_pat_" + "FAKE_" * 12,
         "storage.md": "https://storage.invalid/object?" + "X-Amz-Signature=" + "invented",
         "storage2.md": "https://media.invalid/object?alt=media&" + "X-Goog-Signature=" + "invented",
         "demo.sqlite3-wal": "synthetic private row",
