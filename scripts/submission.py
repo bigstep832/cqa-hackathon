@@ -73,26 +73,32 @@ def release_cutoff(
 
 
 def release(action: str, selection_file: Path, final: bool) -> None:
-    from app.storage.conversations import group_versions
+    from app.storage.conversations import group_versions_snapshot, initialize_conversations
     from app.storage.database import get_engine, write_transaction
-    from app.storage.workflow import (
-        get_calls,
-        get_checklist_version,
-        get_evaluation,
-        get_plan_id,
-        get_request,
-    )
+    from app.storage.workflow import checklist_snapshot
 
     if not selection_file.resolve().is_relative_to(ROOT / "artifacts/private"):
         raise SubmissionError("Keep the selection file inside artifacts/private.")
     selection = ReleaseSelection.model_validate(read_json(selection_file))
-    manifest = group_versions(selection.group_id)
-    checklist = get_checklist_version(OFFICIAL_ID)
+    initialize_conversations()
     capture = action == "export" and final
     with (write_transaction() if capture else get_engine().connect()) as db:
-        jobs = {job_id: SelectedJob(get_evaluation(job_id), get_request(job_id), get_calls(job_id),
-                                    get_plan_id(job_id))
-                for job_id in selection.jobs.values() if job_id is not None}
+        if not capture:
+            db.exec_driver_sql("BEGIN")  # Pin one SQLite snapshot for all release inputs.
+        manifest = group_versions_snapshot(db, selection.group_id)
+        checklist = checklist_snapshot(db, OFFICIAL_ID)
+        jobs = {}
+        calls_codec = TypeAdapter(tuple[ProviderCall, ...])
+        for job_id in selection.jobs.values():
+            if job_id is None:
+                continue
+            row = db.execute(text("SELECT snapshot,request,calls,plan_id FROM evaluations WHERE id=:id"),
+                             {"id": job_id}).one_or_none()
+            if row is None:
+                raise SubmissionError("A selected job does not exist.")
+            jobs[job_id] = SelectedJob(Evaluation.model_validate_json(row.snapshot),
+                                       EvaluationCreateRequest.model_validate_json(row.request),
+                                       calls_codec.validate_json(row.calls), row.plan_id)
         cutoff = release_cutoff(db, selection, jobs, capture=capture, require=final)
         document = build_submission(selection, manifest, checklist, jobs, cutoff=cutoff)
     path = ROOT / "results" / selection.dataset / "results.json"

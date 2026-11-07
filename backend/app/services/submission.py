@@ -40,16 +40,18 @@ CRITERIA = dict(zip(
     ("contact", "discovery", "identification", "consultation", "empathy", "dialogue",
      "closure", "critical"), strict=True,
 ))
-PRIVATE_TEXT = re.compile(
+# External IDs may be opaque numbers. Apply the phone/account-number checks only
+# to natural-language public fields, while checking credentials in every field.
+PRIVATE_ID = re.compile(
     r"https?://|www\.|\bBearer\s+|(?:api[_-]?key|token|signature|sig)\s*[:=]|"
-    r"\b(?:sk-|AIza|gh[pousr]_)[A-Za-z0-9_-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY|"
-    r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?<!\w)\+?\d[\s().-]*(?:\d[\s().-]*){8,}\d(?!\w)|"
-    r"\b[A-Z]{2}\d{2}[A-Z0-9]{12,30}\b|\b[A-Za-z]:[\\/]|/(?:home|Users|tmp|var)/",
+    r"\b(?:sk-|AIza|gh[pousr]_|github_pat_)[A-Za-z0-9_-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY|"
+    r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[A-Za-z]:[\\/]|/(?:home|Users|tmp|var)/",
     re.IGNORECASE,
 )
-PRIVATE_ID = re.compile(r"https?://|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|"
-                        r"\b(?:sk-|AIza|gh[pousr]_)[A-Za-z0-9_-]{12,}|"
-                        r"(?:api[_-]?key|token|signature|sig)\s*[:=]", re.IGNORECASE)
+PRIVATE_NUMBERS = re.compile(
+    r"(?<!\w)\+?\d[\s().-]*(?:\d[\s().-]*){8,}\d(?!\w)|\b[A-Z]{2}\d{2}[A-Z0-9]{12,30}\b",
+    re.IGNORECASE,
+)
 
 
 class SubmissionError(ValueError):
@@ -72,7 +74,8 @@ class SelectedJob:
 
 
 def _public_text(value: str) -> str:
-    if not value.strip() or PRIVATE_TEXT.search(value) or any(ord(c) < 32 for c in value):
+    if (not value.strip() or PRIVATE_ID.search(value) or PRIVATE_NUMBERS.search(value)
+            or any(ord(c) < 32 for c in value)):
         raise SubmissionError("Potentially sensitive public text. Review private input.")
     return value
 

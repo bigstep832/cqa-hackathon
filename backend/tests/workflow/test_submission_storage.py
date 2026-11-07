@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from contextlib import contextmanager
 from datetime import date
 
 import httpx
@@ -90,5 +91,27 @@ def test_offline_persisted_failures_export_and_validate(tmp_path, monkeypatch):
         path.write_text(json.dumps(raw), encoding="utf-8")
         with pytest.raises(SubmissionError):
             cli.release("validate", selection_file, False)
+
+        # An organizer reimport wins the race immediately before the cutoff transaction.
+        from app.storage import database
+
+        transaction = database.write_transaction
+
+        @contextmanager
+        def reimport_before_transaction():
+            import_conversations(ConversationImportRequest.model_validate({
+                "dataset_group_id": "TEST",
+                "records": [{"conversation_id": "updated", "channel": "agent chat", "language": "RU",
+                             "transcript": [{"speaker": "operator", "timestamp": "00:01",
+                                             "text": "Изменённый тестовый набор."}]}],
+            }), source="organizer")
+            with transaction() as db:
+                yield db
+
+        monkeypatch.setattr(database, "write_transaction", reimport_before_transaction)
+        previous = path.read_bytes()
+        with pytest.raises(SubmissionError, match="manifest"):
+            cli.release("export", selection_file, True)
+        assert path.read_bytes() == previous
     finally:
         get_engine().dispose()

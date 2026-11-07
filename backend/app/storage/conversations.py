@@ -262,12 +262,16 @@ def organizer_version_is_current(connection: Connection, group_id: str, version_
 def group_versions(group_id: str) -> tuple[ConversationVersion, ...]:
     initialize_conversations()
     with get_engine().connect() as connection:
-        rows: Sequence[str] = connection.scalars(
-            select(_versions.c.snapshot)
-            .join(_members)
-            .where(_members.c.group_id == group_id)
-            .order_by(_members.c.position)
-        ).all()
+        return group_versions_snapshot(connection, group_id)
+
+
+def group_versions_snapshot(connection: Connection, group_id: str) -> tuple[ConversationVersion, ...]:
+    rows: Sequence[str] = connection.scalars(
+        select(_versions.c.snapshot)
+        .join(_members)
+        .where(_members.c.group_id == group_id)
+        .order_by(_members.c.position)
+    ).all()
     if not rows:
         raise _not_found()
     return tuple(_read_snapshot(value) for value in rows)

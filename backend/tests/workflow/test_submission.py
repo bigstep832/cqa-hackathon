@@ -220,7 +220,8 @@ def test_official_team_name_is_exact(package, name):
 
 
 @pytest.mark.parametrize("text", ["Contact person@example.test", "Call +7 (700) 111 22 33",
-                                  "https://example.test/private-path", "token=private"])
+                                  "https://example.test/private-path", "token=private",
+                                  "github_pat_" + "x" * 60])
 def test_sensitive_rationale_stops_before_writing(package, text):
     selection, manifest, checklist, jobs = package
     original = jobs["fixture-job-0"].evaluation.output
@@ -243,6 +244,15 @@ def test_private_id_never_rewritten_and_transcript_dump_blocked(package):
     answers[0] = answers[0].model_copy(update={"explanation": " ".join(m.text for m in conversation.messages)})
     change_job(jobs, output=output.model_copy(update={"answers": tuple(answers)}))
     with pytest.raises(SubmissionError, match="transcript"):
+        build_submission(selection, manifest, checklist, jobs)
+
+
+@pytest.mark.parametrize("identifier", ["Bearer synthetic-fixture-credential",
+                                         "github_pat_" + "x" * 60])
+def test_secret_bearing_external_id_blocks_release(package, identifier):
+    selection, manifest, checklist, jobs = package
+    manifest[0] = manifest[0].model_copy(update={"conversation_id": identifier})
+    with pytest.raises(SubmissionError, match="Source ID"):
         build_submission(selection, manifest, checklist, jobs)
 
 
