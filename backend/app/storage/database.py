@@ -18,7 +18,9 @@ def _engine(database_url: str) -> Engine:
     if url.get_backend_name() != "sqlite" or not url.database or url.database == ":memory:":
         raise ValueError("DATABASE_URL must select a persistent SQLite database")
     Path(url.database).parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(url, connect_args={"check_same_thread": False, "timeout": 15})
+    engine = create_engine(
+        url, hide_parameters=True, connect_args={"check_same_thread": False, "timeout": 15}
+    )
 
     @event.listens_for(engine, "connect")
     def configure(dbapi_connection: sqlite3.Connection, _record: ConnectionPoolEntry) -> None:

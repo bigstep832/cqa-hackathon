@@ -5,12 +5,14 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 from app.contracts.models import ConversationVersion
 from app.domain.snapshots import conversation_content_hash
 from app.main import app
 from app.services import source_http
 from app.storage import conversations
+from app.storage.database import write_transaction
 
 PREFIX = "/api/v1"
 
@@ -94,6 +96,21 @@ def test_concurrent_imports_create_one_version(client):
         results = list(pool.map(lambda _: submit(client, record()).json(), range(8)))
     assert sum(item["imported_count"] for item in results) == 1
     assert len({item["conversation_version_ids"][0] for item in results}) == 1
+
+
+def test_database_error_hides_private_parameters(client):
+    conversations.initialize_conversations()
+    with write_transaction() as connection:
+        connection.exec_driver_sql("""
+            CREATE TRIGGER reject_example BEFORE INSERT ON conversation_versions
+            BEGIN SELECT RAISE(ABORT,'synthetic failure'); END
+        """)
+    signed_url = "https://media.invalid/test?private_marker=invented"
+    with pytest.raises(IntegrityError) as caught:
+        submit(client, record("private-synthetic-id", audio_url=signed_url))
+    assert "synthetic failure" in str(caught.value)
+    assert signed_url not in str(caught.value)
+    assert "private-synthetic-id" not in str(caught.value)
 
 
 def test_organizer_manifest_is_exact_and_independent(client, monkeypatch):
