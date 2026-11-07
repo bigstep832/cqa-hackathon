@@ -95,17 +95,23 @@ def test_pagination_and_language_are_validated(
     assert client.get(f"/api/v1/conversations?{query}").status_code == 422
 
 
-def test_imported_external_ids_round_trip_and_out_of_range_pages_are_empty(client: TestClient) -> None:
+def test_imported_ids_and_out_of_range_pages(client: TestClient) -> None:
     external_ids = ["case/RU-17", "c" * 201]
     records = [
-        {"conversation_id": identifier, "channel": "agent chat", "language": "RU",
-         "transcript": [{"timestamp": "00:01", "speaker": "operator", "text": "Пример"}]}
+        {
+            "conversation_id": identifier,
+            "channel": "agent chat",
+            "language": "RU",
+            "transcript": [{"timestamp": "00:01", "speaker": "operator", "text": "Пример"}],
+        }
         for identifier in external_ids
     ]
-    response = client.post("/api/v1/conversations/import",
-                           json={"dataset_group_id": "TEST", "records": records})
+    response = client.post(
+        "/api/v1/conversations/import", json={"dataset_group_id": "TEST", "records": records}
+    )
     assert response.status_code == 200
-    for identifier, version in zip(external_ids, response.json()["conversation_version_ids"], strict=True):
+    versions = response.json()["conversation_version_ids"]
+    for identifier, version in zip(external_ids, versions, strict=True):
         detail = client.get("/api/v1/conversations/" + quote(identifier, safe=""))
         assert detail.status_code == 200
         assert (detail.json()["conversation_id"], detail.json()["id"]) == (identifier, version)
