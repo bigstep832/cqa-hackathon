@@ -11,7 +11,7 @@ from app.main import app
 
 @pytest.fixture
 def client() -> Iterator[TestClient]:
-    with TestClient(app) as instance:
+    with TestClient(app, base_url="http://127.0.0.1") as instance:
         yield instance
 
 
@@ -38,57 +38,29 @@ def test_demo_is_valid_synthetic_and_links_to_its_own_snapshot(client: TestClien
             assert evidence.end_message_id in ids
 
 
-def test_every_agreed_workflow_returns_typed_501(client: TestClient) -> None:
-    demo = client.get("/api/v1/demo").json()
-    checklist = {key: demo["checklist"][key] for key in ("name", "sections", "criteria")}
-    operations = [
-        ("POST", "/api/v1/datasets/import", {"group_id": "DEV"}),
-        (
-            "POST", "/api/v1/conversations/import",
-            {"dataset_group_id": "SYNTHETIC", "records": [{
-                "conversation_id": "synthetic-contract-test", "language": "RU",
-                "channel": "agent chat", "audio_url": None,
-                "transcript": [{"timestamp": "00:00", "speaker": "client", "text": "Тест"}],
-            }]},
-        ),
-        ("GET", "/api/v1/conversations", None),
-        ("GET", "/api/v1/conversations/synthetic", None),
-        ("GET", "/api/v1/conversation-versions/synthetic-v1", None),
-        ("POST", "/api/v1/checklists", checklist),
-        ("GET", "/api/v1/checklists", None),
-        ("POST", "/api/v1/checklists/default/versions", checklist),
-        ("GET", "/api/v1/checklist-versions/default-v1", None),
-        ("POST", "/api/v1/evaluations", {
-            "conversation_version_id": "synthetic-v1", "checklist_version_id": "default-v1",
-            "mode": "live", "provider": "unconfigured", "model": "unconfigured",
-        }),
-        ("GET", "/api/v1/evaluations/e1", None),
-        ("POST", "/api/v1/evaluations/e1/appeals", {
-            "criterion_id": "C01", "comment": "Синтетический пример апелляции",
-        }),
-        ("GET", "/api/v1/evaluations/e1/appeals", None),
-        ("POST", "/api/v1/appeals/a1/decision", {
-            "action": "confirm", "reason": "Синтетический пример решения",
-            "idempotency_key": "synthetic-decision-1",
-        }),
-    ]
-    for method, path, body in operations:
+def test_unconfigured_source_and_unknown_snapshots_return_typed_errors(client: TestClient) -> None:
+    for method, path, body, status in (
+        ("POST", "/api/v1/datasets/import", {"group_id": "DEV"}, 503),
+        ("GET", "/api/v1/conversations/unknown", None, 404),
+        ("GET", "/api/v1/conversation-versions/unknown", None, 404),
+        ("GET", "/api/v1/checklist-versions/unknown", None, 404),
+        ("GET", "/api/v1/evaluations/unknown", None, 404),
+        ("GET", "/api/v1/evaluations/unknown/appeals", None, 404),
+    ):
         response = client.request(method, path, json=body)
-        assert response.status_code == 501, (method, path, response.text)
-        error = ErrorResponse.model_validate(response.json())
-        assert error.error.code == "NOT_IMPLEMENTED"
-        assert "C-" in error.error.message
+        assert response.status_code == status
+        ErrorResponse.model_validate(response.json())
 
 
 def test_validation_error_has_contract_without_echoing_input(client: TestClient) -> None:
     secret_marker = "DO_NOT_ECHO_PRIVATE_TEST_INPUT"
     response = client.post(
-        "/api/v1/datasets/import", json={"group_id": "DEV", "signed_url": secret_marker}
+        "/api/v1/datasets/import", json={"group_id": "DEV", secret_marker: secret_marker}
     )
     assert response.status_code == 422
     error = ErrorResponse.model_validate(response.json())
     assert error.error.code == "VALIDATION_ERROR"
-    assert error.error.details[0].field == "body.signed_url"
+    assert error.error.details[0].field == "body"
     assert secret_marker not in response.text
 
 
@@ -98,7 +70,7 @@ def test_openapi_describes_success_requests_and_consistent_errors(client: TestCl
         operation
         for path in schema["paths"].values()
         for method, operation in path.items()
-        if method in {"get", "post"}
+        if method in {"get", "post"} and "media" not in operation.get("tags", [])
     ]
     assert len(operations) == 16
     for operation in operations:
@@ -106,7 +78,7 @@ def test_openapi_describes_success_requests_and_consistent_errors(client: TestCl
         success = [value for code, value in responses.items() if code.startswith("2")]
         assert len(success) == 1
         assert "$ref" in success[0]["content"]["application/json"]["schema"]
-        for code in ("404", "409", "422", "501", "502"):
+        for code in ("404", "409", "422", "413", "502", "503"):
             assert responses[code]["content"]["application/json"]["schema"]["$ref"].endswith(
                 "/ErrorResponse"
             )
@@ -116,7 +88,7 @@ def test_openapi_describes_success_requests_and_consistent_errors(client: TestCl
 
 
 @pytest.mark.parametrize("query", ["limit=0", "limit=101", "offset=-1", "language=XX"])
-def test_pagination_and_language_are_validated_before_stub(
+def test_pagination_and_language_are_validated(
     client: TestClient, query: str
 ) -> None:
     assert client.get(f"/api/v1/conversations?{query}").status_code == 422

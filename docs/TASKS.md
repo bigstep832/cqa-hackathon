@@ -9,6 +9,8 @@
 A-04 (спецификация готова, ревью C впереди) и C-06 (экспорт/валидатор, ещё planned).
 До контрольного часа подготовить C-06, не откладывать его за необязательные функции.
 
+В ветке backend готова серверная часть C-01–C-04 и C-06. C-05 требует реальных данных, совместного UI-прогона и подтверждения опубликованных результатов. Команды запуска приведены в [EXPORT](EXPORT.md).
+
 ## Уже выполненная в bootstrap область для ревью A
 
 **BOOT-01 · A/C · P0 · bootstrap.** Общая rubric, DTO, scorer, output validation,
@@ -57,7 +59,7 @@ Scorer реализован отдельно от настоящего AI; A о�
 - Первый блок: typed клиент списка/версий/оценок, выбор диалога и фильтры языка/канала;
   тесты через явный stub transport. До готовности C покажи 501 честно, без подмены live mock.
 
-## C-01 · C · P0 · planned — Импорт и версии
+## C-01 · C · P0 · реализовано и проверено офлайн — Импорт и версии
 
 - Каталоги: `backend/app/api/`, `storage/`, `services/`,
   `backend/tests/api/`, `backend/tests/workflow/`, `scripts/`.
@@ -91,7 +93,7 @@ Scorer реализован отдельно от настоящего AI; A о�
 - Команды: frontend typecheck/lint/test/build и браузерные сценарии редактора/апелляции.
 - Не входит: локальная имитация успешного server mutation, расчёт итогов.
 
-## C-02 · C · P0 · planned — Версии чек-листа
+## C-02 · C · P0 · реализовано и проверено офлайн — Версии чек-листа
 
 - Каталоги: api/storage/services и API/workflow tests.
 - Зависимости: C-01, ChecklistVersion DTO и общая validation.
@@ -101,7 +103,7 @@ Scorer реализован отдельно от настоящего AI; A о�
 - Команды: API/workflow pytest, `python scripts/export_contracts.py --check`.
 - Не входит: jobs, выбор модели и изменение смысла рубрики.
 
-## C-03 · C · P0 · planned — Jobs и запуск оценки
+## C-03 · C · P0 · реализовано и проверено офлайн — Jobs и запуск оценки
 
 - Каталоги: api/storage/services и API/workflow tests.
 - Зависимости: C-01/C-02, EvaluationProvider; mock только synthetic в тестах.
@@ -111,7 +113,7 @@ Scorer реализован отдельно от настоящего AI; A о�
 - Команды: API/workflow pytest, `python scripts/verify.py`.
 - Не входит: новый scorer, выбор LLM, внешняя очередь.
 
-## C-04 · C · P0 · planned — Апелляции и атомарный пересчёт
+## C-04 · C · P0 · реализовано и проверено офлайн — Апелляции и атомарный пересчёт
 
 - Каталоги: api/storage/services и API/workflow tests.
 - Зависимости: C-03, общий scorer.
@@ -148,7 +150,7 @@ Scorer реализован отдельно от настоящего AI; A о�
   appeals/custom rubric не подменяют официальный исходный AI, evidence всех ролей.
 - Не входит: реализация C exporter/CLI/storage/release и frontend B.
 
-## C-06 · C · P0 · planned — Экспорт DEV/PROD и офлайн-валидатор
+## C-06 · C · P0 · реализовано и проверено офлайн — Экспорт DEV/PROD и офлайн-валидатор
 
 - Спецификация: [RESULTS_SUBMISSION](RESULTS_SUBMISSION.md); схема A в
   `contracts/results.schema.json`. Схема описывает структуру, не весь валидатор.

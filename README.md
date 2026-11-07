@@ -5,16 +5,12 @@
 проверяемые доказательства. Главный ориентир отбора — близость исходной AI-оценки
 к Ground Truth на 10 новых диалогах. Формула сравнения жюри неизвестна.
 
-**Состояние: bootstrap + офлайн-часть A-01.** Это основа для параллельной разработки.
-В поставку входят scorer с regression tests, исходная рубрика, канонические DTO,
-OpenAPI/TS-типы, EvaluationProvider, синтетический MockEvaluationProvider,
-`/health` и `/api/v1/demo`, тестовый экран и офлайн-проверки.
-Остальные согласованные API-маршруты возвращают типизированный HTTP 501
-`NOT_IMPLEMENTED`. Адаптеры Gemini/OpenAI/локального API и разметка реализованы и
-проверены без сети; реальные запросы и точность ещё не проверены. Инструкция —
-[A-01](docs/A01_OFFLINE_HANDOFF.md). Импорт, SQLite storage, jobs, апелляции и полный UI
-ещё предстоит реализовать. Результаты проверок общего каркаса — в
-[отчёте bootstrap](docs/BOOTSTRAP_REPORT.md).
+Backend сохраняет диалоги и версии чек-листов в SQLite, выполняет задания оценки,
+принимает апелляции и выгружает исходные оценки в официальный формат. Frontend этой
+ветки показывает синтетический пример. Инструкции по настройке, запуску заданий и
+проверке результатов приведены в [контракте API](docs/API_CONTRACT.md),
+[инструкции по экспорту](docs/EXPORT.md) и [отчёте участника A](docs/A01_OFFLINE_HANDOFF.md).
+Работа с настоящими данными и точность относительно Ground Truth требуют отдельной приёмки.
 
 Начните с [AGENTS.md](AGENTS.md) и [START_HERE](docs/START_HERE.md).
 Роли: **A — AI и scoring**, **B — frontend**, **C — backend/workflow и интеграция**.
@@ -45,7 +41,10 @@ npm --prefix frontend ci
 npm --prefix frontend run generate:api
 ```
 
-Первый терминал:
+Первый терминал. Для работы с частными настройками создайте локальный `.env` по
+`.env.example` и добавьте к команде `--env-file .env`. Без настроек доступны
+ручной импорт, хранение, синтетический пример и его оценка. Используйте один процесс
+uvicorn с доступом только с локального компьютера. Тот же порядок применим в Linux/macOS.
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
@@ -95,8 +94,8 @@ npm --prefix frontend run test:e2e
 На POSIX замените `.\.venv\Scripts\python.exe` на `.venv/bin/python`.
 `verify.py` объединяет ruff, mypy, pytest, проверку экспорта и frontend
 typecheck/lint/test/build. Playwright запускается отдельно и проверяет только
-реализованный bootstrap: открытие demo и переход к evidence. Сквозная приёмка
-импорта и апелляций — будущие задачи, см. [ACCEPTANCE](docs/ACCEPTANCE.md).
+экран demo и переход к evidence. Pytest проходит работу API с SQLite,
+перезапуск и апелляции. Состояние UI-приёмки отражено в [ACCEPTANCE](docs/ACCEPTANCE.md).
 Для Chromium выполните `cd frontend`, `npx playwright install chromium`, затем
 `npm run test:e2e` без переменной `CQA_BROWSER_CHANNEL`. В CI используется Chromium.
 
@@ -105,7 +104,7 @@ typecheck/lint/test/build. Playwright запускается отдельно и
 Экран и результаты mock явно помечены: **«Тестовые данные — не AI-оценка»**.
 Mock обрабатывает только созданные командой synthetic fixtures.
 DEV/control никогда не заменяются готовыми ответами. Адаптеры A-01 проверены офлайн;
-реальные вызовы и интеграция API workflow ещё не подтверждены. Отсутствие ключа
+реальные вызовы требуют утверждённого приватного плана и доступа к источнику. Отсутствие ключа
 или ошибка провайдера не переключает режим в mock.
 
 API-ключи и адрес организаторов вводятся локально по `.env.example`, не в браузере,
@@ -114,11 +113,11 @@ Git или чате. Реальные данные — только `data/privat
 Исключение — обязательная обезличенная итоговая выжимка по
 [RESULTS_SUBMISSION](docs/RESULTS_SUBMISSION.md): `results/dev/results.json` (65)
 и `results/prod/results.json` (10). Оба файла нужно commit + push до стоп-кода.
-Спецификация и `contracts/results.schema.json` готовы; экспортёр, валидатор и CLI —
-задача C-06, пока не реализованы. Синтетические заглушки в этих путях запрещены.
+Экспортёр и валидатор сверяют оценки с сохранёнными версиями, вызовами модели и
+составом группы. Для офлайн-репетиции запустите `python scripts/submission.py rehearse`.
 
 Создан публичный репозиторий [bigstep832/cqa-hackathon](https://github.com/bigstep832/cqa-hackathon).
-Код отправлен в `main`; результаты локальных проверок — в отчёте bootstrap,
+История каркаса зафиксирована в отчёте bootstrap,
 текущий CI — во вкладке Actions. Live-бюджет 0 до согласования
 провайдера и разрешённой суммы. Команда **DT-20**, стоп-код **08.11.2026, 12:00 по Астане**
 (подтверждено пользователем). См. [DECISIONS](docs/DECISIONS.md).

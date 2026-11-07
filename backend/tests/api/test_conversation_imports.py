@@ -22,7 +22,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path.as_posix()}/history.sqlite3")
     monkeypatch.delenv("ORGANIZER_API_URL", raising=False)
     monkeypatch.delenv("CQA_AUDIO_ORIGINS", raising=False)
-    return TestClient(app)
+    return TestClient(app, base_url="http://127.0.0.1")
 
 
 def record(identifier="example-1", text="Образец", **kwargs):

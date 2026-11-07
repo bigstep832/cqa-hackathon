@@ -1,4 +1,4 @@
-"""Run deterministic bootstrap checks without live APIs or private datasets."""
+"""Run deterministic integration checks without live APIs or organizer data."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ def main() -> int:
         [sys.executable, "-m", "mypy", "backend/app"],
         [sys.executable, "-m", "pytest"],
         [sys.executable, "scripts/export_contracts.py", "--check"],
+        [sys.executable, "scripts/submission.py", "rehearse"],
         [npm, "--prefix", "frontend", "run", "generate:api:check"],
         *[
             [npm, "--prefix", "frontend", "run", task]
@@ -32,7 +33,7 @@ def main() -> int:
         completed = subprocess.run(command, cwd=ROOT, check=False)
         if completed.returncode:
             return completed.returncode
-    print("Bootstrap checks passed. Live AI and full MVP workflows are separate tasks.")
+    print("Offline CQA checks passed. Real data and model quality require separate acceptance.")
     return 0
 
 
