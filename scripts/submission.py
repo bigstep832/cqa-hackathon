@@ -6,13 +6,15 @@ import argparse
 import asyncio
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "backend"), str(ROOT)]
 
 from dotenv import load_dotenv  # noqa: E402
-from pydantic import ValidationError  # noqa: E402
+from pydantic import TypeAdapter, ValidationError  # noqa: E402
+from sqlalchemy import Connection, text  # noqa: E402
 from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 
 from app.api.errors import ApiError  # noqa: E402
@@ -20,8 +22,10 @@ from app.contracts.models import (  # noqa: E402
     ErrorDetail,
     Evaluation,
     EvaluationCreateRequest,
+    ProviderCall,
 )
 from app.domain.scoring import score  # noqa: E402
+from app.domain.snapshots import stable_hash  # noqa: E402
 from app.evaluation.demo import load_synthetic_input  # noqa: E402
 from app.evaluation.mock import MockEvaluationProvider  # noqa: E402
 from app.services.submission import (  # noqa: E402
@@ -36,8 +40,41 @@ from app.services.submission import (  # noqa: E402
 )
 
 
+def release_cutoff(
+    db: Connection, selection: ReleaseSelection, jobs: dict[str, SelectedJob], *,
+    capture: bool, require: bool,
+) -> dict[str, tuple[ProviderCall, ...]] | None:
+    codec = TypeAdapter(dict[str, tuple[ProviderCall, ...]])
+    fingerprint = stable_hash(selection.model_dump(mode="json"))
+    if capture:
+        db.exec_driver_sql("""CREATE TABLE IF NOT EXISTS submission_cutoffs (
+            selection_hash TEXT PRIMARY KEY, recorded_at TEXT NOT NULL, pending_calls TEXT NOT NULL)""")
+    table = db.exec_driver_sql(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='submission_cutoffs'"
+    ).scalar_one_or_none()
+    if table:
+        saved = db.execute(text("SELECT pending_calls FROM submission_cutoffs WHERE selection_hash=:hash"),
+                           {"hash": fingerprint}).scalar_one_or_none()
+        if saved is not None:
+            return codec.validate_json(saved)
+    if not capture:
+        if require:
+            raise SubmissionError("No recorded cutoff for this exact selection.")
+        return None
+    # Caller holds BEGIN IMMEDIATE across job reads and validation. A worker cannot
+    # move a job or publish later calls partway through capturing this cutoff.
+    pending = {key: item.calls for key, item in jobs.items()
+               if item.evaluation.status in {"queued", "running"}}
+    db.execute(text("""INSERT INTO submission_cutoffs(selection_hash,recorded_at,pending_calls)
+                    VALUES(:hash,:at,:calls)"""),
+               {"hash": fingerprint, "at": datetime.now(UTC).isoformat(),
+                "calls": codec.dump_json(pending).decode()})
+    return pending
+
+
 def release(action: str, selection_file: Path, final: bool) -> None:
     from app.storage.conversations import group_versions
+    from app.storage.database import get_engine, write_transaction
     from app.storage.workflow import (
         get_calls,
         get_checklist_version,
@@ -51,10 +88,13 @@ def release(action: str, selection_file: Path, final: bool) -> None:
     selection = ReleaseSelection.model_validate(read_json(selection_file))
     manifest = group_versions(selection.group_id)
     checklist = get_checklist_version(OFFICIAL_ID)
-    jobs = {job_id: SelectedJob(get_evaluation(job_id), get_request(job_id), get_calls(job_id),
-                                get_plan_id(job_id))
-            for job_id in selection.jobs.values() if job_id is not None}
-    document = build_submission(selection, manifest, checklist, jobs, final=final)
+    capture = action == "export" and final
+    with (write_transaction() if capture else get_engine().connect()) as db:
+        jobs = {job_id: SelectedJob(get_evaluation(job_id), get_request(job_id), get_calls(job_id),
+                                    get_plan_id(job_id))
+                for job_id in selection.jobs.values() if job_id is not None}
+        cutoff = release_cutoff(db, selection, jobs, capture=capture, require=final)
+        document = build_submission(selection, manifest, checklist, jobs, cutoff=cutoff)
     path = ROOT / "results" / selection.dataset / "results.json"
     if path.resolve() != path:
         raise SubmissionError("Official destination must not be redirected by a link.")
@@ -111,7 +151,8 @@ def main() -> int:
     for action in ("export", "validate"):
         sub = commands.add_parser(action)
         sub.add_argument("--selection", type=Path, required=True, help="Private group and pinned job map.")
-        sub.add_argument("--finalize-incomplete", action="store_true", help="Include explicitly unfinished jobs as errors.")
+        sub.add_argument("--finalize-incomplete", action="store_true",
+                         help="Export: freeze the cutoff for this selection. Validate: require its saved cutoff.")
     args = parser.parse_args()
     try:
         load_dotenv(ROOT / ".env", override=False)

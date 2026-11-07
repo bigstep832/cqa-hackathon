@@ -6,15 +6,16 @@ from datetime import date
 
 import httpx
 import pytest
+from scripts import prepare_batch
 from scripts import submission as cli
 
-from app.contracts.models import ConversationImportRequest, EvaluationCreateRequest
+from app.contracts.models import ConversationImportRequest
 from app.evaluation.factory import create_provider
 from app.services import jobs, live_workflow
-from app.services.submission import OFFICIAL_ID, ReleaseSelection, SubmissionError
+from app.services.submission import ReleaseSelection, SubmissionError, read_json
 from app.storage.conversations import import_conversations
 from app.storage.database import get_engine
-from app.storage.workflow import initialize_workflow
+from app.storage.workflow import get_evaluation
 
 
 def test_offline_persisted_failures_export_and_validate(tmp_path, monkeypatch):
@@ -22,6 +23,9 @@ def test_offline_persisted_failures_export_and_validate(tmp_path, monkeypatch):
     private = tmp_path / "artifacts/private"
     private.mkdir(parents=True)
     monkeypatch.setattr(cli, "ROOT", tmp_path)
+    monkeypatch.setattr(prepare_batch, "ROOT", tmp_path)
+    selection_file = private / "selection.json"
+    path = tmp_path / "results/prod/results.json"
     today = date.today().isoformat()
     plan = {"provider": "local", "model": "synthetic-transport", "local_base_url": "http://127.0.0.1:1/v1",
             "dataset_group_ids": ["TEST"], "max_cases": 10, "max_requests": 10,
@@ -49,24 +53,36 @@ def test_offline_persisted_failures_export_and_validate(tmp_path, monkeypatch):
                              "transcript": [{"speaker": "operator", "timestamp": "00:02",
                                              "text": "Учебный диалог."}]} for n in range(10)]}),
                 source="organizer")
-            initialize_workflow()
-            pinned = {}
-            for version_id in imported.conversation_version_ids:
-                queued = jobs.create_evaluation(EvaluationCreateRequest(
-                    conversation_version_id=version_id, checklist_version_id=OFFICIAL_ID, mode="live"))
+            args = (selection_file, "prod", "TEST", "DT-20")
+            assert prepare_batch.prepare(*args, enqueue=False) == 0
+            assert prepare_batch.prepare(*args, enqueue=True) == 10
+            selected = ReleaseSelection.model_validate(read_json(selection_file))
+            assert set(selected.jobs) == set(imported.conversation_version_ids)
+            assert len(set(selected.jobs.values())) == 10
+            assert prepare_batch.prepare(*args, enqueue=True) == 10
+            assert ReleaseSelection.model_validate(read_json(selection_file)) == selected
+            with pytest.raises(SubmissionError, match="still pending"):
+                cli.release("export", selection_file, False)
+            with pytest.raises(SubmissionError, match="No actual model"):
+                cli.release("export", selection_file, True)
+            assert not path.exists()
+            for _ in range(9):
                 await jobs.run_claimed(*jobs.claim_job())
-                pinned[version_id] = queued.id
-            return pinned
+            cli.release("export", selection_file, True)
+            sealed = path.read_bytes()
+            last = jobs.claim_job()
+            assert read_json(path)["results"][-1]["error"] == "Оценка не завершилась к сроку."
+            await jobs.run_claimed(*last)
+            assert jobs.claim_job() is None and get_evaluation(last[0].id).status == "failed"
+            cli.release("validate", selection_file, True)
+            cli.release("validate", selection_file, False)
+            cli.release("export", selection_file, True)
+            assert path.read_bytes() == sealed
 
     try:
-        selection = ReleaseSelection(dataset="prod", group_id="TEST", team_name="Synthetic tests",
-                                     jobs=asyncio.run(exercise()))
-        selection_file = private / "selection.json"
-        selection_file.write_text(selection.model_dump_json(), encoding="utf-8")
-        cli.release("export", selection_file, False)
-        cli.release("validate", selection_file, False)
-        path = tmp_path / "results/prod/results.json"
+        asyncio.run(exercise())
         raw = json.loads(path.read_text(encoding="utf-8"))
+        assert raw["team_name"] == "DT-20"
         assert len(raw["results"]) == 10 and all(row["status"] == "error" for row in raw["results"])
         assert raw["model"] == {"mode": "local", "name": "local/synthetic-transport"}
         assert "test-private-fragment" not in path.read_text(encoding="utf-8")

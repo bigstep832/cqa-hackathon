@@ -52,7 +52,7 @@ def batch(dataset="prod"):
         request = EvaluationCreateRequest(mode="live", provider=call.provider, model=call.model,
                                          checklist_version_id=demo.checklist.id, conversation_version_id=conversation.id)
         jobs[job_id] = SelectedJob(evaluation, request, (call,), "test-plan")
-    selection = ReleaseSelection(dataset=dataset, group_id="offline-test", team_name="Synthetic tests", jobs=mapping)
+    selection = ReleaseSelection(dataset=dataset, group_id="offline-test", team_name="DT-20", jobs=mapping)
     return selection, manifest, demo.checklist, jobs
 
 
@@ -193,11 +193,30 @@ def test_explicit_cutoff_and_model_provenance(package):
     jobs.pop("fixture-job-0")
     with pytest.raises(SubmissionError):
         build_submission(selection, manifest, checklist, jobs)
-    assert build_submission(selection, manifest, checklist, jobs, final=True)["results"][0]["status"] == "error"
+    assert build_submission(selection, manifest, checklist, jobs, cutoff={})["results"][0]["status"] == "error"
     for key in selection.jobs:
         selection.jobs[key] = None
     with pytest.raises(SubmissionError, match="No actual model"):
-        build_submission(selection, manifest, checklist, {}, final=True)
+        build_submission(selection, manifest, checklist, {}, cutoff={})
+
+
+def test_job_succeeded_after_cutoff_keeps_failure_and_prior_model_provenance(package):
+    selection, manifest, checklist, jobs = package
+    old = jobs["fixture-job-0"]
+    late_call = old.calls[0].model_copy(update={"provider": "openai", "model": "later-test-model"})
+    jobs["fixture-job-0"] = replace(old, calls=(late_call,))
+    document = build_submission(selection, manifest, checklist, jobs, cutoff={"fixture-job-0": ()})
+    assert document["results"][0]["error"] == "Оценка не завершилась к сроку."
+    assert document["model"] == {"mode": "local", "name": "local/offline-fixture"}
+
+
+@pytest.mark.parametrize("name", ["dt-20", "DT-20 ", " DT-20", "Synthetic rehearsal"])
+def test_official_team_name_is_exact(package, name):
+    selection, manifest, checklist, jobs = package
+    fields = selection.model_dump()
+    fields["team_name"] = name
+    with pytest.raises(SubmissionError, match="exactly DT-20"):
+        build_submission(ReleaseSelection.model_validate(fields), manifest, checklist, jobs)
 
 
 @pytest.mark.parametrize("text", ["Contact person@example.test", "Call +7 (700) 111 22 33",

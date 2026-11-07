@@ -13,6 +13,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, NoReturn
 
+from pydantic import StrictStr
+
 from app.contracts.models import (
     ChecklistVersion,
     ConversationVersion,
@@ -30,6 +32,7 @@ from app.domain.snapshots import checklist_content_hash, conversation_content_ha
 from app.evaluation.validation import validate_output
 
 ROOT = Path(__file__).resolve().parents[3]
+TEAM_NAME = "DT-20"
 OFFICIAL_ID = "checklist-default-v1"
 OFFICIAL_HASH = "f172eb1ab664d3e4d11f1a55a6b34b51e6ca3fd7af0c402443f065b10b8c9437"
 CRITERIA = dict(zip(
@@ -56,7 +59,7 @@ class SubmissionError(ValueError):
 class ReleaseSelection(FrozenModel):
     dataset: Literal["dev", "prod"]
     group_id: NonEmpty
-    team_name: NonEmpty
+    team_name: StrictStr
     jobs: dict[NonEmpty, NonEmpty | None]
 
 
@@ -105,7 +108,7 @@ def _failure_text(job: Evaluation) -> str:
 
 def _result(
     conversation: ConversationVersion, checklist: ChecklistVersion, selected: SelectedJob,
-    *, final: bool, rehearsal: bool,
+    *, pending_at_cutoff: bool, rehearsal: bool,
 ) -> dict[str, Any]:
     job, req = selected.evaluation, selected.request
     if (job.conversation_version_id != conversation.id or req.conversation_version_id != conversation.id
@@ -116,12 +119,12 @@ def _result(
         raise SubmissionError("Job mode is incompatible with the selected dataset.")
     if not rehearsal and not selected.plan_id:
         raise SubmissionError("No approved live plan was recorded for this job.")
+    if pending_at_cutoff:
+        return _error_row(conversation.conversation_id, "Оценка не завершилась к сроку.")
     if job.status == "failed":
         return _error_row(conversation.conversation_id, _failure_text(job))
     if job.status != "succeeded":
-        if not final:
-            raise SubmissionError("A selected job is still pending.")
-        return _error_row(conversation.conversation_id, "Оценка не завершилась к сроку.")
+        raise SubmissionError("A selected job is still pending.")
     assert job.output is not None
     metadata = job.output.metadata
     if (not req.provider or not req.model or metadata.calls != selected.calls
@@ -160,8 +163,10 @@ def _result(
 def build_submission(
     selection: ReleaseSelection, conversations: Sequence[ConversationVersion],
     checklist: ChecklistVersion, jobs: dict[str, SelectedJob], *,
-    final: bool = False, rehearsal: bool = False,
+    cutoff: dict[str, tuple[ProviderCall, ...]] | None = None, rehearsal: bool = False,
 ) -> dict[str, Any]:
+    if not rehearsal and selection.team_name != TEAM_NAME:
+        raise SubmissionError("The official team name must be exactly DT-20.")
     if checklist.id != OFFICIAL_ID or checklist_content_hash(checklist) != OFFICIAL_HASH:
         raise SubmissionError("Expected the pinned official checklist ID and content hash.")
     expected_channels = {"agent chat": 10} if selection.dataset == "prod" else {
@@ -175,6 +180,8 @@ def build_submission(
     requested_jobs = [i for i in selection.jobs.values() if i is not None]
     if len(set(requested_jobs)) != len(requested_jobs) or set(requested_jobs) != jobs.keys():
         raise SubmissionError("Duplicate, missing or unexpected job.")
+    if cutoff is not None and cutoff.keys() - jobs.keys():
+        raise SubmissionError("Cutoff belongs to different jobs.")
     models: set[tuple[str, str]] = set()
     rows = []
     for c in conversations:
@@ -185,14 +192,16 @@ def build_submission(
             raise SubmissionError("Source, group or content hash is incompatible with this release.")
         job_id = selection.jobs[c.id]
         if job_id is None:
-            if not final:
+            if cutoff is None:
                 raise SubmissionError("An organizer conversation has no selected job.")
             rows.append(_error_row(c.conversation_id, "Оценка не была запущена к сроку."))
             continue
         job = jobs[job_id]
         if job.evaluation.id != job_id:
             raise SubmissionError("Selected job ID does not match the stored job.")
-        for call in job.calls:
+        pending_at_cutoff = cutoff is not None and job_id in cutoff
+        calls = cutoff[job_id] if cutoff is not None and pending_at_cutoff else job.calls
+        for call in calls:
             if call.provider not in {"openai", "gemini", "local"}:
                 raise SubmissionError("Unknown provider in execution history.")
             if call.purpose == "evaluate" and (call.provider, call.model) != (
@@ -200,7 +209,7 @@ def build_submission(
             ):
                 raise SubmissionError("The recorded evaluation call differs from the requested model.")
             models.add((call.provider, _public_text(call.model)))
-        rows.append(_result(c, checklist, job, final=final, rehearsal=rehearsal))
+        rows.append(_result(c, checklist, job, pending_at_cutoff=pending_at_cutoff, rehearsal=rehearsal))
     if rehearsal:
         mode, name = "local", "fixture/synthetic-v1 (offline rehearsal)"
     else:
