@@ -252,6 +252,68 @@ def test_older_export_cannot_overwrite_newer_publication(completed_submission, m
     assert read_json(path)["results"][-1]["conversation_id"] == "replacement-9"
 
 
+def test_enqueuing_partial_selection_cannot_interleave_with_export(completed_submission, monkeypatch):
+    selection_file, path = completed_submission
+    complete = ReleaseSelection.model_validate(read_json(selection_file))
+    pending_version = list(complete.jobs)[-1]
+    partial = complete.model_copy(update={"jobs": {**complete.jobs, pending_version: None}})
+    prepare_batch.save_selection(selection_file, partial)
+    args = (selection_file, "prod", complete.group_id, complete.team_name)
+    busy = []
+
+    def resume_after_selection_read(source):
+        data = read_json(source)
+        try:
+            prepare_batch.prepare(*args, enqueue=True)
+        except SubmissionError as exc:
+            busy.append(str(exc))
+        return data
+
+    with monkeypatch.context() as patch:
+        patch.setattr(cli, "read_json", resume_after_selection_read)
+        cli.release("export", selection_file, True)
+    published = path.read_bytes()
+    assert read_json(path)["results"][-1]["error"] == "Оценка не была запущена к сроку."
+    cli.release("validate", selection_file, False)
+    assert path.read_bytes() == published
+    assert busy and "Cannot lock this selection" in busy[0]
+
+    assert prepare_batch.prepare(*args, enqueue=True) == 10
+    assert ReleaseSelection.model_validate(read_json(selection_file)) == complete
+    cli.release("export", selection_file, True)
+    cli.release("validate", selection_file, False)
+    assert path.read_bytes() != published
+
+
+def test_busy_selection_fails_before_reading_group_or_published_file(completed_submission, monkeypatch):
+    selection_file, path = completed_submission
+    published = path.read_bytes()
+
+    def forbid_read(*args):
+        pytest.fail("Read release inputs before acquiring the selection lock")
+
+    monkeypatch.setattr(prepare_batch, "group_versions", forbid_read)
+    monkeypatch.setattr(cli, "read_json", forbid_read)
+    with jobs.exclusive_file_lock(selection_file.with_suffix(".batch.lock")):
+        with pytest.raises(SubmissionError, match="Cannot lock this selection"):
+            prepare_batch.prepare(selection_file, "prod", "TEST", "DT20", enqueue=True)
+        with pytest.raises(SubmissionError, match="Cannot lock this selection"):
+            cli.release("validate", selection_file, False)
+    assert path.read_bytes() == published
+
+
+def test_validate_does_not_race_publication_from_another_selection(completed_submission):
+    selection_file, path = completed_submission
+    alternate_selection = selection_file.with_name("other-selection.json")
+    alternate_selection.write_bytes(selection_file.read_bytes())
+    previous = path.read_bytes()
+    with jobs.exclusive_file_lock(selection_file.parent / "prod-publication.lock"):
+        with pytest.raises(SubmissionError, match="Cannot lock this dataset"):
+            cli.release("validate", alternate_selection, False)
+    cli.release("validate", alternate_selection, False)
+    assert path.read_bytes() == previous
+
+
 def test_pre_journal_database_and_cutoff_are_still_readable(completed_submission):
     selection_file, path = completed_submission
     expected = path.read_bytes()

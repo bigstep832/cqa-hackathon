@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import os
 import sys
-from contextlib import ExitStack
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -36,6 +35,8 @@ from app.services.submission import (  # noqa: E402
     SubmissionError,
     build_submission,
     read_json,
+    selection_lock,
+    submission_lock,
     validate_file,
     write_verified,
 )
@@ -65,8 +66,10 @@ def release_cutoff(
         return None
     # Caller holds BEGIN IMMEDIATE across job reads and validation. A worker cannot
     # move a job or publish later calls partway through capturing this cutoff.
-    pending = {key: (*item.calls, *item.dispatches) for key, item in jobs.items()
-               if item.evaluation.status in {"queued", "running"}}
+    pending: dict[str, tuple[ProviderCall | DispatchAttempt, ...]] = {
+        key: (*item.calls, *item.dispatches) for key, item in jobs.items()
+        if item.evaluation.status in {"queued", "running"}
+    }
     db.execute(text("""INSERT INTO submission_cutoffs(selection_hash,recorded_at,pending_calls)
                     VALUES(:hash,:at,:calls)"""),
                {"hash": fingerprint, "at": datetime.now(UTC).isoformat(),
@@ -75,24 +78,15 @@ def release_cutoff(
 
 
 def release(action: str, selection_file: Path, final: bool) -> None:
-    from app.services.jobs import exclusive_file_lock
-
-    if not selection_file.resolve().is_relative_to(ROOT / "artifacts/private"):
-        raise SubmissionError("Keep the selection file inside artifacts/private.")
-    selection = ReleaseSelection.model_validate(read_json(selection_file))
-    lock_path = ROOT / "artifacts/private" / f"{selection.dataset}-publication.lock"
-    # Two different selections can share one official path. Acquire before reading
-    # the DB snapshot and release only after the verified file has been replaced.
-    with ExitStack() as stack:
-        if action == "export":
-            try:
-                stack.enter_context(exclusive_file_lock(lock_path))
-            except OSError:
-                raise SubmissionError(
-                    "Cannot lock this dataset for export. Check private directory permissions "
-                    "or retry after the current export."
-                ) from None
-        release_selection(action, selection, final)
+    selection_file = selection_file.resolve()
+    if not selection_file.is_relative_to(ROOT / "artifacts/private") or selection_file.suffix != ".json":
+        raise SubmissionError("Keep the selection JSON inside artifacts/private.")
+    # Always acquire in this order. Prepare needs only the first lock.
+    with selection_lock(selection_file):
+        selection = ReleaseSelection.model_validate(read_json(selection_file))
+        lock_path = ROOT / "artifacts/private" / f"{selection.dataset}-publication.lock"
+        with submission_lock(lock_path, "dataset"):
+            release_selection(action, selection, final)
 
 
 def release_selection(action: str, selection: ReleaseSelection, final: bool) -> None:

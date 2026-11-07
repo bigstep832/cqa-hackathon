@@ -7,7 +7,8 @@ import os
 import re
 import tempfile
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
@@ -58,6 +59,25 @@ PRIVATE_NUMBERS = re.compile(
 
 class SubmissionError(ValueError):
     """A diagnostic safe to print without leaking source records."""
+
+
+@contextmanager
+def submission_lock(path: Path, subject: str) -> Iterator[None]:
+    from app.services.jobs import exclusive_file_lock
+
+    with ExitStack() as stack:
+        try:
+            stack.enter_context(exclusive_file_lock(path))
+        except OSError:
+            raise SubmissionError(
+                f"Cannot lock this {subject}. Check private directory permissions "
+                "or retry after the current command."
+            ) from None
+        yield
+
+
+def selection_lock(path: Path) -> AbstractContextManager[None]:
+    return submission_lock(path.with_suffix(".batch.lock"), "selection")
 
 
 class ReleaseSelection(FrozenModel):

@@ -18,8 +18,15 @@ sys.path[:0] = [str(ROOT / "backend"), str(ROOT)]
 from app.api.errors import ApiError
 from app.contracts.models import EvaluationCreateRequest
 from app.domain.snapshots import stable_hash
-from app.services.jobs import create_evaluation, exclusive_file_lock
-from app.services.submission import OFFICIAL_ID, TEAM_NAME, ReleaseSelection, read_json
+from app.services.jobs import create_evaluation
+from app.services.submission import (
+    OFFICIAL_ID,
+    TEAM_NAME,
+    ReleaseSelection,
+    SubmissionError,
+    read_json,
+    selection_lock,
+)
 from app.storage.conversations import group_versions
 from app.storage.workflow import initialize_workflow
 
@@ -42,17 +49,16 @@ def prepare(
         raise ValueError("Выборку нужно сохранить в JSON внутри artifacts/private.")
     if team != TEAM_NAME:
         raise ValueError("Название команды расходится с подтверждённым названием.")
-    versions = group_versions(group)
-    expected = {"agent chat": 60, "voice call": 5} if dataset == "dev" else {"agent chat": 10}
-    if Counter(v.channel for v in versions) != expected or any(
-        v.source != "organizer" or v.synthetic or v.dataset_group_id != group for v in versions
-    ):
-        raise ValueError("Состав импортированной группы не соответствует набору.")
-    selection = ReleaseSelection(
-        dataset=dataset, group_id=group, team_name=team, jobs={v.id: None for v in versions}
-    )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with exclusive_file_lock(path.with_suffix(".batch.lock")):
+    with selection_lock(path):
+        versions = group_versions(group)
+        expected = {"agent chat": 60, "voice call": 5} if dataset == "dev" else {"agent chat": 10}
+        if Counter(v.channel for v in versions) != expected or any(
+            v.source != "organizer" or v.synthetic or v.dataset_group_id != group for v in versions
+        ):
+            raise ValueError("Состав импортированной группы не соответствует набору.")
+        selection = ReleaseSelection(
+            dataset=dataset, group_id=group, team_name=team, jobs={v.id: None for v in versions}
+        )
         if path.exists():
             previous = ReleaseSelection.model_validate(read_json(path))
             if (
@@ -96,6 +102,9 @@ def main() -> int:
         queued = prepare(args.selection, args.dataset, args.group, args.team, args.enqueue)
     except ApiError as exc:
         print(exc.error.code, file=sys.stderr)
+        return 1
+    except SubmissionError as exc:
+        print(str(exc), file=sys.stderr)
         return 1
     except (ValueError, OSError):
         print("Проверьте состав группы, путь выборки, параметры или блокировку.", file=sys.stderr)
