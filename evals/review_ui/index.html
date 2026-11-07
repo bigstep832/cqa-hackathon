@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="review-token" content="REVIEW_TOKEN">
+  <title>DT20 · Разметка диалогов</title>
+  <link rel="stylesheet" href="/assets/review.css">
+  <script src="/assets/review.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#reader">К диалогу</a>
+<header class="topbar">
+  <div class="brand">DT<span>20</span></div>
+  <div><p class="eyebrow">ЛАБОРАТОРИЯ КАЧЕСТВА</p><h1>Разметка диалогов</h1></div>
+  <span class="private-tag">Локально · без AI-запросов</span>
+</header>
+<main>
+  <section class="intro">
+    <div><p class="eyebrow" id="step">01 / ПОДГОТОВКА</p><h2 id="stage-title">Сначала — независимая выборка</h2>
+      <p id="stage-help">Выберите около 20–25 диалогов. Дайте переводам и вариантам одного сценария одинаковое имя группы.</p></div>
+    <div class="metrics"><div><strong id="all-count">—</strong><span>диалогов</span></div><div><strong id="selected-count">0</strong><span>выбрано</span></div><div><strong id="done-count">0</strong><span>завершено</span></div></div>
+  </section>
+  <div id="notice" class="notice" role="status" aria-live="polite">Загрузка локальных данных…</div>
+  <section id="selection-tools" class="selection-tools" aria-label="Фиксация выборки">
+    <label>Группировку проверил<input id="grouped-by" autocomplete="name" placeholder="Имя участника"></label>
+    <label>Seed<input id="seed" type="number" step="1" value="42"></label>
+    <label>Групп для проверки<input id="holdout-groups" type="number" min="1" step="1" value="1"></label>
+    <div class="selection-actions"><button id="save-selection" type="button">Сохранить выбор</button><button id="preview" type="button">Посмотреть разделение</button><button id="freeze" class="primary" type="button">Зафиксировать выборку</button></div>
+    <p id="preview-result" class="wide hint">Проверьте состав обеих частей перед фиксацией.</p>
+    <p class="hint wide">После фиксации состав и группы блокируются. Число выше означает группы, а не диалоги. Ответы пока останутся пустыми.</p>
+  </section>
+  <section id="export-tools" class="export-tools" aria-label="Экспорт разметки" hidden>
+    <p id="split-counts"></p><div><button id="export-tune" type="button">Экспорт: настройка</button><button id="export-holdout" type="button">Экспорт: проверка</button></div>
+    <p class="hint wide">Экспорт доступен после завершения всех диалогов выбранной части. Отложенную проверку используйте после фиксации модели. Это эталоны команды, не Ground Truth организаторов.</p>
+  </section>
+  <div class="workspace">
+    <aside class="library" aria-label="Список диалогов">
+      <div class="library-head"><h2>Диалоги</h2><span id="list-count"></span></div>
+      <label class="search-label">Найти по ID<input id="search" type="search" placeholder="ID диалога"></label>
+      <div class="filter-row"><label>Язык<select id="language"><option value="">Все языки</option><option>RU</option><option>KZ</option><option>EN</option></select></label><label>Канал<select id="channel"><option value="">Все каналы</option><option value="agent chat">Чаты</option><option value="voice call">Звонки</option></select></label></div>
+      <div id="list" class="conversation-list"></div>
+    </aside>
+    <section id="reader" class="reader" tabindex="-1" aria-label="Исходный диалог">
+      <div class="reader-heading"><p class="eyebrow">ИСХОДНЫЕ РЕПЛИКИ</p><h2 id="record-title">Откройте диалог</h2><p id="record-meta">Сначала прочитайте весь разговор. Оцениваются действия оператора.</p></div>
+      <div id="messages" class="messages"><div class="empty">Выберите диалог слева.<br>Здесь появятся реплики всех участников в исходном порядке.</div></div>
+    </section>
+    <section class="annotation-panel" aria-label="Ответы по критериям">
+      <div class="annotation-heading"><p class="eyebrow">РУЧНАЯ ОЦЕНКА</p><h2>Ответы и доказательства</h2></div>
+      <div id="annotation-empty" class="empty">Зафиксируйте выборку, чтобы начать разметку.<br>Готовые ответы модели здесь не показываются.</div>
+      <form id="annotation-form" hidden>
+        <div id="criteria"></div>
+        <fieldset class="reviewer"><legend>Проверка человеком</legend>
+          <label>Разметчик<input id="annotated-by" autocomplete="name"></label>
+          <label class="check"><input id="language-understood" type="checkbox">Я понимаю язык этого диалога</label>
+          <details><summary>Вторая проверка спорных ответов</summary>
+            <p class="hint">Второй участник должен лично проверить спорные ответы и подтверждающие реплики.</p>
+            <label>Второй проверяющий<input id="reviewed-by"></label>
+            <label class="check"><input id="review-confirmed" type="checkbox">Второй проверяющий подтверждает проверку</label>
+          </details>
+        </fieldset>
+        <div class="save-bar"><p id="save-state">Ответы не заполнены</p><div><button id="save-draft" type="button">Сохранить черновик</button><button id="finish" type="button" class="primary">Завершить разметку</button></div></div>
+      </form>
+    </section>
+  </div>
+</main>
+<footer>DT20 · A-02 <span>Данные и история изменений сохраняются только на этом компьютере.</span></footer>
+</body>
+</html>

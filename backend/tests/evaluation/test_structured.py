@@ -1,8 +1,10 @@
 import json
+from decimal import Decimal
 
 import pytest
 
 from app.contracts.models import EvaluationInput, EvaluationMetadata
+from app.domain.scoring import score
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
 from app.evaluation.structured import (
     StructuredOutputError,
@@ -59,6 +61,34 @@ def test_schema_and_system_prompt_include_actual_custom_criterion() -> None:
     assert "Специальная новая ступень" in build_system_instruction(evaluation_input)
     assert "anyOf" in answer_schema["C02"]["properties"]["answer"]
     assert "anyOf" not in answer_schema["C01"]["properties"]["answer"]
+
+
+@pytest.mark.parametrize("value", ["частично выполнено", "жартылай орындалды", "partially  done"])
+def test_choice_values_preserve_unicode_and_internal_spaces_through_scoring(value: str) -> None:
+    raw = live_input().model_dump(mode="json")
+    custom = raw["checklist"]["criteria"][0].copy()
+    custom.update(id="custom-choice", answer_type="choice", options=[{
+        "value": value, "label": "Частично", "description": "Синтетический вариант",
+        "quality": "0.5", "flagged": False,
+    }])
+    raw["checklist"]["criteria"].append(custom)
+    evaluation_input = EvaluationInput.model_validate(raw)
+    schema = build_response_schema(evaluation_input.checklist)
+    criterion_schema = schema["properties"]["answers"]["properties"]["custom-choice"]
+    assert criterion_schema["properties"]["answer"]["properties"]["value"]["enum"] == [value]
+
+    response = json.loads(model_response())
+    response["answers"]["custom-choice"] = {
+        "answer": {"type": "choice", "value": value},
+        "explanation": "Синтетическое подтверждение частичного выполнения",
+        "evidence": response["answers"]["C01"]["evidence"],
+    }
+    output = parse_model_response(json.dumps(response, ensure_ascii=False), evaluation_input, metadata())
+    assert output.answers[-1].answer.type == "choice"
+    assert output.answers[-1].answer.value == value
+    result = score(evaluation_input.checklist, output.answers)
+    assert result.criteria[-1].earned_points == Decimal("5")
+    assert result.total == Decimal("80.67")
 
 
 def test_payload_omits_technical_ids_and_audio_url() -> None:

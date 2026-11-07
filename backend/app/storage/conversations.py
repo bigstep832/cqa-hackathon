@@ -286,7 +286,7 @@ def list_conversations(
     initialize_conversations()
     latest = (
         select(func.max(_versions.c.sequence).label("seq"))
-        .group_by(_versions.c.conversation_id)
+        .group_by(_versions.c.conversation_id, _versions.c.group_id, _versions.c.source)
         .subquery()
     )
     filters = []
@@ -310,7 +310,8 @@ def list_conversations(
         if offset >= total:
             return ConversationList(items=(), total=total, offset=offset, limit=limit)
         rows = connection.execute(
-            query.order_by(_versions.c.conversation_id).offset(offset).limit(limit)
+            query.order_by(_versions.c.conversation_id, _versions.c.group_id, _versions.c.source)
+            .offset(offset).limit(limit)
         )
         summaries = tuple(ConversationSummary.model_validate(row._mapping) for row in rows)
     return ConversationList(items=summaries, total=total, offset=offset, limit=limit)

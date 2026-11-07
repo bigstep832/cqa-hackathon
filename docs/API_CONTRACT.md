@@ -20,6 +20,8 @@
 | GET /api/v1/conversations | query → ConversationList | Список, offset/limit |
 | GET /api/v1/conversations/{conversation_id} | path → ConversationVersion | Последняя версия внешнего диалога |
 | GET /api/v1/conversation-versions/{version_id} | path → ConversationVersion | Конкретный исторический snapshot |
+| GET /api/v1/conversation-versions/{version_id}/history/versions | offset, limit → items, total, offset, limit | Все версии того же диалога, начиная с новой |
+| GET /api/v1/conversation-versions/{version_id}/history/evaluations | offset, limit → items, total, offset, limit | Все задания этого диалога, включая задания прежних версий |
 | GET /api/v1/conversation-versions/{version_id}/audio | одиночный Range → audio/* | Аудио из разрешённого источника, HTTP 200/206 |
 | POST /api/v1/checklists | ChecklistCreateRequest → ChecklistVersion | Новый чек-лист |
 | GET /api/v1/checklists | — → ChecklistList | Список последних версий |
@@ -58,6 +60,20 @@ POST оценок принимает необязательный заголов
 возвращает запись, другой комментарий даёт 409. Повтор решения с тем же ключом и
 телом возвращает сохранённый ответ. Для отображения исправления B читает решения
 из списка апелляций и effective_score. Исходные ответы и original_score сохраняются.
+
+**История в карточке B.** Возьмите внутренний `latest_version_id` из списка диалогов
+и запросите обе коллекции `history`. На страницах по умолчанию 25 записей, максимум 100.
+Сервер находит версии по тройке «источник, группа, внешний ID», поэтому одинаковые
+внешние ID, в том числе с `/`, не смешивают данные. Неизвестная исходная версия даёт
+404, известный диалог без заданий — 200 с пустым списком оценок.
+Список диалогов возвращает отдельную карточку для каждой такой тройки.
+
+В списке версий каждая строка содержит `id` и `imported_at`. В списке оценок —
+`id`, `conversation_version_id`, `checklist_version_id`, `mode`, `status`, `created_at`.
+Выбор строки оценки открывает `GET /api/v1/evaluations/{id}`. Для evidence загрузите
+именно версию диалога и чек-листа из возвращённой оценки. При открытии из чистой
+вкладки весь путь доступен по GET, без сохранённого состояния вкладки и постановки
+новой задачи. Для апелляций передайте тот же ID оценки в существующую форму.
 
 ## Формат данных
 

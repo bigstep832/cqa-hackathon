@@ -2,6 +2,13 @@
 
 ## Подготовка ручных эталонов
 
+Начните с [памятки разметчика DT20](ANNOTATION_GUIDE.md): правила C01–C08,
+спорные случаи, независимая проверка человеком и порядок работы с holdout.
+
+Для работы без ручного редактирования JSON доступен [локальный инструмент разметки
+в браузере](REVIEW_APP.md): выбор диалогов и групп, предпросмотр и фиксация split,
+ответы с evidence, история изменений и отдельный экспорт tune/holdout.
+
 `prepare.py` создаёт **пустой draft ручной разметки команды**, фиксирует tune/holdout
 и проверяет завершённый человеческий ввод. Скрипт не вызывает модели, не импортирует
 mock-ответы и не превращает DEV либо синтетический пример в готовый Ground Truth.
@@ -112,7 +119,7 @@ Draft сохраняет полные snapshots, их `input_hash`, seed, split,
 
 ## Сравнение исходных автоматических оценок
 
-`compare.py` — минимальный диагностический инструмент для A, без сетевых запросов.
+`compare.py` — диагностический инструмент для A, без сетевых запросов.
 Вход predictions — JSON-массив канонических `Evaluation`; используется только
 `original_score`, до апелляций. References — массив `ReferenceRecord`, схема находится
 в том же модуле. Одна пара snapshots имеет ровно одну выбранную оценку и один эталон.
@@ -126,20 +133,43 @@ Draft сохраняет полные snapshots, их `input_hash`, seed, split,
 
 ```powershell
 $env:PYTHONPATH = 'backend'
-.\.venv\Scripts\python.exe evals/compare.py --references data/private/references.json --predictions artifacts/private/predictions.json
+.\.venv\Scripts\python.exe -m evals.compare --references data/private/references-tune.v1.json --predictions artifacts/private/predictions-tune.json --output artifacts/private/quality-tune.v1.json
 ```
 
 macOS/Linux:
 
 ```sh
-PYTHONPATH=backend .venv/bin/python evals/compare.py --references data/private/references.json --predictions artifacts/private/predictions.json
+PYTHONPATH=backend .venv/bin/python -m evals.compare --references data/private/references-tune.v1.json --predictions artifacts/private/predictions-tune.json --output artifacts/private/quality-tune.v1.json
 ```
 
-Отчёт содержит совпадение ответов, MAE итогового балла, N/A, число failed/pending
-и разбивку по критериям. Метрики рассчитаны только по завершённым валидным оценкам;
-знаменатели и неуспешные попытки указаны отдельно. Это не формула жюри.
-Смысл evidence, ошибки по языкам/каналам, стоимость всех вызовов и спорные разметки
-разбираются по плану `docs/AI_EVALUATION_PLAN.md`, а не объявляются этим скриптом проверенными.
+Входы и выход CLI разрешены только внутри `data/private` или `artifacts/private`
+этого репозитория. `--output` создаёт новый файл без перезаписи и выводит только
+подтверждение. Без этого параметра полный приватный отчёт выводится в stdout;
+не помещайте его в публичные логи. Прямой вызов `python evals/compare.py` также поддержан.
+
+Отчёт версии 2.0 сохраняет прежние поля и добавляет:
+
+- таблицы ошибок `per_criterion.*.confusion`: expected/predicted/count с типами
+  ответов и исходными ступенями C04/C06, без смешивания с взвешенными баллами;
+- `na_detection`: ложные и пропущенные N/A, precision/recall/F1;
+- `boolean_true` для критериев, где наблюдались только boolean-ответы; для исходного
+  C08 положительный класс — нарушение. При нулевом знаменателе метрика null;
+- разбивку `by_language`, `by_channel`, `by_checklist`, включая failed/pending;
+- доли success/failure/pending от всех пар; долю полностью совпавших диалогов
+  среди succeeded; несовпадения null/non-null итогов отдельно от числового MAE;
+- `disagreements` с IDs оценок/версий, кодом критерия и ответами, без пояснений
+  и транскриптов; `successful_prediction_identity` с mode/provider/model и версиями.
+
+Один отчёт не смешивает tune с holdout или разные mode/provider/model/instruction/pipeline
+среди succeeded. Для другой модели и для holdout нужны отдельные файлы и отчёты.
+При всех failed идентичность модели здесь неизвестна, поэтому равна null.
+При разных версиях рубрики смотрите `by_checklist`, а не только общий итог.
+
+Accuracy и MAE считаются по succeeded; знаменатели и failed/pending указаны отдельно.
+Проверяйте их вместе: точность 1 на одном succeeded при остальных failed не означает
+успешный прогон. Отчёт mock — только техническая репетиция, не точность AI.
+Смысл evidence, стоимость всех попыток и правильность ручных эталонов проверяются
+отдельно по `docs/AI_EVALUATION_PLAN.md`. Формула жюри не заявляется известной.
 
 Эталоны команды не являются Ground Truth организаторов. Готовые реальные эталоны
 не включены. Храните разметку в `data/private`, результаты в `artifacts/private`.
