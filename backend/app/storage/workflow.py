@@ -1,7 +1,8 @@
 """Versioned checklists and durable evaluation/appeal records in the shared SQLite database."""
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from pathlib import Path
+from uuid import UUID, uuid4
 
 from pydantic import AwareDatetime, TypeAdapter
 from sqlalchemy import Connection, ScalarResult, text
@@ -33,19 +34,42 @@ class DispatchAttempt(FrozenModel):
     started_at: AwareDatetime
 
 
+def handoff_marker(db: Connection, token: str) -> Path:
+    """A private timestamp acknowledges handoff after the SQLite preparation commits."""
+    database = db.engine.url.database
+    assert database is not None
+    return Path(database + ".handoffs") / UUID(token).hex
+
+
 def dispatches_snapshot(db: Connection, evaluation_id: str) -> tuple[DispatchAttempt, ...]:
-    # Old databases have only completed ProviderCall rows until upgraded by startup.
-    exists = db.exec_driver_sql(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='evaluation_dispatches'"
-    ).scalar()
-    if not exists:
+    columns = {row.name for row in db.exec_driver_sql("PRAGMA table_info(evaluation_dispatches)")}
+    if not columns:
         return ()
+    # A pre-upgrade journal is readable even when the offline exporter runs before startup.
+    token_column = "handoff_token" if "handoff_token" in columns else "NULL"
     rows = db.execute(
-        text("""SELECT provider, model, attempt, started_at
+        text(f"""SELECT provider, model, attempt, started_at, {token_column}, completed_call
         FROM evaluation_dispatches WHERE evaluation_id=:id ORDER BY attempt"""),
         {"id": evaluation_id},
     )
-    return tuple(DispatchAttempt.model_validate(row._mapping) for row in rows)
+    result = []
+    for provider, model, attempt, started_at, token, completed_call in rows:
+        if token is not None and completed_call is None:
+            if not isinstance(token, str):
+                raise ValueError("Invalid dispatch journal token")
+            try:
+                stamp = handoff_marker(db, token).read_text(encoding="ascii")
+            except (FileNotFoundError, UnicodeDecodeError):
+                continue
+            # UTC ISO timestamp with microseconds and +00:00. Ignore a short write.
+            if len(stamp) != 32 or not stamp.endswith("+00:00"):
+                continue
+            try:
+                started_at = datetime.fromisoformat(stamp)
+            except ValueError:
+                continue
+        result.append(DispatchAttempt(provider=provider, model=model, attempt=attempt, started_at=started_at))
+    return tuple(result)
 
 
 def get_dispatches(evaluation_id: str) -> tuple[DispatchAttempt, ...]:
@@ -79,7 +103,10 @@ def initialize_workflow() -> None:
         db.exec_driver_sql("""CREATE TABLE IF NOT EXISTS evaluation_dispatches (
             evaluation_id TEXT NOT NULL REFERENCES evaluations(id), attempt INTEGER NOT NULL,
             provider TEXT NOT NULL, model TEXT NOT NULL, started_at TEXT NOT NULL, completed_call TEXT,
-            PRIMARY KEY(evaluation_id, attempt))""")
+            handoff_token TEXT, PRIMARY KEY(evaluation_id, attempt))""")
+        columns = {row.name for row in db.exec_driver_sql("PRAGMA table_info(evaluation_dispatches)")}
+        if "handoff_token" not in columns:
+            db.exec_driver_sql("ALTER TABLE evaluation_dispatches ADD COLUMN handoff_token TEXT")
         existing = db.execute(
             text("SELECT snapshot FROM checklist_versions WHERE id=:id"), {"id": canonical.id}
         ).scalar_one_or_none()

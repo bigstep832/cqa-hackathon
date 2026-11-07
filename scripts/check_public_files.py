@@ -50,6 +50,7 @@ def main() -> int:
         relative = Path(name)
         private = (
             any(part in PRIVATE_PARTS for part in relative.parts)
+            or any(part.lower().endswith(".handoffs") for part in relative.parts[:-1])
             or name.startswith(("data/private/", "artifacts/private/"))
             or relative.suffix.lower() in PRIVATE_SUFFIXES
             or SQLITE_SIDECAR.search(relative.name) is not None
