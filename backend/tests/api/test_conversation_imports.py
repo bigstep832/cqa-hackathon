@@ -49,6 +49,18 @@ def submit(client, *records, group_id="TEST"):
     )
 
 
+def organizer_payload(records):
+    return {
+        "isSuccess": True,
+        "error": None,
+        "data": {
+            "dataset_group_id": "TEST",
+            "total_records": len(records),
+            "records": records,
+        },
+    }
+
+
 def test_history_and_filters_survive_restart(client):
     first = submit(client, record(), record("example-2", language="KZ")).json()
     second = submit(client, record()).json()
@@ -124,7 +136,7 @@ def test_organizer_manifest_is_exact_and_independent(client, monkeypatch):
         return (
             200,
             {},
-            json.dumps({"isSuccess": True, "error": None, "data": {"records": records}}).encode(),
+            json.dumps(organizer_payload(records)).encode(),
         )
 
     monkeypatch.setattr(source_http, "fetch", fetch)
@@ -141,6 +153,41 @@ def test_organizer_manifest_is_exact_and_independent(client, monkeypatch):
     records[:] = [record("two")]
     assert client.post(source, json={"group_id": "TEST"}).json()["unchanged_count"] == 1
     assert [v.conversation_id for v in conversations.group_versions("TEST")] == ["two"]
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"dataset_group_id": "wrong", "total_records": 1},
+        {"dataset_group_id": None, "total_records": 1},
+        {"dataset_group_id": "TEST ", "total_records": 1},
+        {"dataset_group_id": "TEST", "total_records": 0},
+        {"dataset_group_id": "TEST", "total_records": 2},
+        {"dataset_group_id": "TEST", "total_records": "1"},
+        {"dataset_group_id": "TEST", "total_records": True},
+        {"dataset_group_id": "TEST", "total_records": 1.0},
+        {"dataset_group_id": "TEST", "total_records": None},
+        {"dataset_group_id": "TEST"},
+        {"total_records": 1},
+    ],
+)
+def test_invalid_source_metadata_preserves_manifest_and_versions(client, monkeypatch, metadata):
+    monkeypatch.setenv("ORGANIZER_API_URL", "https://source.invalid/import")
+    endpoint = f"{PREFIX}/datasets/import"
+    envelope = organizer_payload([record("original")])
+    monkeypatch.setattr(
+        source_http, "fetch", lambda *args, **kwargs: (200, {}, json.dumps(envelope).encode())
+    )
+    assert client.post(endpoint, json={"group_id": "TEST"}).status_code == 200
+    previous = conversations.group_versions("TEST")
+
+    envelope["data"] = {**metadata, "records": [record("replacement")]}
+    response = client.post(endpoint, json={"group_id": "TEST"})
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "INVALID_SOURCE_DATA"
+    assert conversations.group_versions("TEST") == previous
+    assert client.get(f"{PREFIX}/conversations/replacement").status_code == 404
+    assert client.get(f"{PREFIX}/conversations").json()["total"] == 1
 
 
 @pytest.mark.parametrize(
@@ -175,7 +222,7 @@ def test_duplicate_source_keys_do_not_replace_manifest(client, monkeypatch):
     monkeypatch.setenv("ORGANIZER_API_URL", "https://source.invalid/import")
 
     def payload(identifier):
-        return json.dumps({"isSuccess": True, "data": {"records": [record(identifier)]}})
+        return json.dumps(organizer_payload([record(identifier)]))
 
     content = payload("original")
     monkeypatch.setattr(source_http, "fetch", lambda *a, **kw: (200, {}, content.encode()))

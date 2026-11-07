@@ -30,7 +30,13 @@ def import_dataset(request: DatasetImportRequest) -> ImportResponse:
         envelope = decode_json(payload)
         if envelope["isSuccess"] is not True or envelope.get("error") not in (None, ""):
             raise ValueError("Source reported failure")
-        records = envelope["data"]["records"]
+        data = envelope["data"]
+        if data["dataset_group_id"] != request.group_id:
+            raise ValueError("Unexpected organizer group")
+        records = data["records"]
+        total = data["total_records"]
+        if not isinstance(records, list) or type(total) is not int or total != len(records):
+            raise ValueError("Organizer record count does not match the batch")
         batch = ConversationImportRequest(dataset_group_id=request.group_id, records=records)
         if any(
             record["conversation_id"] != item.conversation_id
