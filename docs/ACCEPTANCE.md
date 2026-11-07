@@ -31,14 +31,14 @@ SQLite и полным A‑02 из `ecf4d74`. В Edge после переимп�
 | Настоящий AI анализ новых данных | evaluation | A | A-01/A-02, independent holdout | Planned |
 | Импорт DEV/control по group_id и ручной JSON | services/storage/API | C | C-01 integration | API проверен на синтетическом источнике, реальный импорт впереди |
 | Повтор изменённого текста создаёт новую версию | storage | C | Import unchanged/changed test | Проверено API + SQLite |
-| Evidence старой оценки открывает старый snapshot | storage/API/UI | C/B | Reimport → old evaluation → evidence | Проверен API, остаётся UI |
-| Checklist editor: новый criterion и изменение answer type | UI/services | B/C | B-02 + browser сценарий | Проверена серверная версия, остаётся UI |
+| Evidence старой оценки открывает старый snapshot | storage/API/UI | C/B | Reimport → old evaluation → evidence | Проверено через B по ID после переимпорта; список истории в карточке ещё не подключён |
+| Checklist editor: новый criterion и изменение answer type | UI/services | B/C | B-03 + browser сценарий | В Edge изменён C01 и добавлен C09; следующая оценка использовала версию с девятью критериями |
 | Изменение rubric фактически меняет запрос provider | services/evaluation | C/A | Capture EvaluationInput test | Проверка версии в worker |
 | Старая оценка после изменения rubric остаётся прежней | storage | C | Version immutability integration | Проверено на SQLite |
 | Queued/running/succeeded/failed, restart/retry | services | C | C-03 restart test | Проверено, включая restart |
-| Апелляция, confirm/override, reason, пересчёт | services/UI | C/B | C-04 + browser flow | Проверено через HTTP, остаётся UI |
+| Апелляция, confirm/override, reason, пересчёт | services/UI | C/B | C-04 + browser flow | Проверено через B, включая оригинал после reload и конфликт 409 |
 | Исходный AI immutable, decision атомарен и идемпотентен | storage/services | C | Duplicate/conflict/rollback tests | Проверено на синтетической оценке |
-| Аудио доступно, offset не выдумывается | import/UI | C/B | Call fixture, missing mapping | API/Range проверены, остаётся реальная запись и UI |
+| Аудио доступно, offset не выдумывается | import/UI | C/B | Call fixture, missing mapping | Через B проверены play/pause/seek синтетической записи и ошибка в карточке |
 | RU/KZ/EN без повреждения и смысловая оценка | Весь pipeline | A/B/C | Unicode import/UI + human eval | Planned |
 | Новый технический ID не меняет решение | evaluation | A | Metamorphic eval | Planned |
 | Инструкция в transcript не подменяет rubric | evaluation | A | Adversarial synthetic eval | Planned |
