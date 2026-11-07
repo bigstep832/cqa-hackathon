@@ -45,7 +45,7 @@ CRITERIA = dict(zip(
 PRIVATE_ID = re.compile(
     r"https?://|www\.|\bBearer\s+|(?:api[_-]?key|token|signature|sig)\s*[:=]|"
     r"\b(?:sk-|AIza|gh[pousr]_|github_pat_)[A-Za-z0-9_-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY|"
-    r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[A-Za-z]:[\\/]|/(?:home|Users|tmp|var)/",
+    r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[A-Za-z]:[\\/]|/(?:home|Users|tmp|var)/",
     re.IGNORECASE,
 )
 PRIVATE_NUMBERS = re.compile(
