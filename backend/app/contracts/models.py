@@ -37,7 +37,20 @@ def value_key(value: bool | int | float | str) -> tuple[str, str]:
     if isinstance(value, bool):
         return ("boolean", str(value))
     if isinstance(value, (int, float)):
-        return ("scale", str(Decimal(str(value)).normalize()))
+        number = Decimal(str(value))
+        if not number.is_finite():
+            raise ValueError("Numeric option values must be finite")
+        parts = number.as_tuple()
+        digits = list(parts.digits)
+        exponent = int(parts.exponent)
+        # Decimal.normalize() округляет по текущему context.prec. Канонизация
+        # tuple сохраняет все цифры больших int и всё же отождествляет 7 и 7.0.
+        while len(digits) > 1 and digits[-1] == 0:
+            digits.pop()
+            exponent += 1
+        if not any(digits):
+            return ("scale", "0")
+        return ("scale", str(Decimal((parts.sign, tuple(digits), exponent))))
     return ("choice", value)
 
 

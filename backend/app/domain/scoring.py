@@ -1,7 +1,8 @@
 """Единый scorer для исходных ответов и будущих решений по апелляциям."""
 
 from collections.abc import Sequence
-from decimal import ROUND_HALF_UP, Decimal, localcontext
+from decimal import Decimal, localcontext
+from fractions import Fraction
 
 from app.contracts.models import (
     Answer,
@@ -49,35 +50,64 @@ def validate_answers(
     return indexed
 
 
-def score(checklist: ChecklistVersion, answers: Sequence[CriterionAnswer]) -> ScoreResult:
-    """Веса и quality перемножаются точно; округляется только итог до сотых.
+def _finite_decimal(value: Fraction) -> Decimal:
+    """Точное Decimal-представление конечной десятичной дроби без context."""
+    denominator = value.denominator
+    twos = fives = 0
+    while denominator % 2 == 0:
+        twos += 1
+        denominator //= 2
+    while denominator % 5 == 0:
+        fives += 1
+        denominator //= 5
+    if denominator != 1:
+        raise ValueError("Expected a finite decimal fraction")
+    places = max(twos, fives)
+    coefficient = value.numerator * 2 ** (places - twos) * 5 ** (places - fives)
+    parts = Decimal(coefficient).as_tuple()
+    return Decimal((parts.sign, parts.digits, -places))
 
-    HALF_UP — инженерное допущение. 50 значащих цифр используются лишь при
-    представлении бесконечных нормированных дробей, а не для округления весов.
+
+def _percentage_half_up(earned: Fraction, weight: Fraction) -> Decimal:
+    """Авторитетный итог: точное HALF_UP до сотых целочисленным divmod."""
+    cents = earned * 10000 / weight
+    quotient, remainder = divmod(cents.numerator, cents.denominator)
+    rounded = quotient + int(2 * remainder >= cents.denominator)
+    return Decimal((0, Decimal(rounded).as_tuple().digits, -2))
+
+
+def score(checklist: ChecklistVersion, answers: Sequence[CriterionAnswer]) -> ScoreResult:
+    """Веса, quality, произведения и суммы вычисляются как точные дроби.
+
+    HALF_UP — инженерное допущение. 50 значащих цифр используются только для
+    отображаемых нормированных вкладов; итог от их приближения не зависит.
     """
     indexed = validate_answers(checklist, answers)
-    raw: list[tuple[CriterionDefinition, AnswerOption | None, Decimal | None]] = []
-    total_weight = Decimal(0)
-    total_earned = Decimal(0)
+    raw: list[tuple[CriterionDefinition, AnswerOption | None, Fraction | None]] = []
+    total_weight = Fraction(0)
+    total_earned = Fraction(0)
     flags: list[str] = []
-    # Веса/quality имеют ограниченную практическую точность; высокую precision
-    # сохраняем и для умножения, чтобы не потерять значимые десятичные разряды.
+    for criterion in checklist.criteria:
+        option = resolve_option(criterion, indexed[criterion.id].answer)
+        earned: Fraction | None = None
+        if option is not None and criterion.kind == "scored":
+            assert criterion.weight is not None and option.quality is not None
+            earned = Fraction(criterion.weight) * Fraction(option.quality)
+            total_weight += Fraction(criterion.weight)
+            total_earned += earned
+        if option is not None and criterion.kind == "flag" and option.flagged:
+            flags.append(criterion.id)
+        raw.append((criterion, option, earned))
+
+    # Только отображение повторяющихся дробей ограничено 50 цифрами.
     with localcontext() as context:
         context.prec = 50
-        for criterion in checklist.criteria:
-            option = resolve_option(criterion, indexed[criterion.id].answer)
-            earned: Decimal | None = None
-            if option is not None and criterion.kind == "scored":
-                assert criterion.weight is not None and option.quality is not None
-                earned = criterion.weight * option.quality
-                total_weight += criterion.weight
-                total_earned += earned
-            if option is not None and criterion.kind == "flag" and option.flagged:
-                flags.append(criterion.id)
-            raw.append((criterion, option, earned))
 
-        def normalized(value: Decimal) -> Decimal | None:
-            return Decimal(100) * value / total_weight if total_weight else None
+        def normalized(value: Fraction) -> Decimal | None:
+            if not total_weight:
+                return None
+            fraction = 100 * value / total_weight
+            return Decimal(fraction.numerator) / Decimal(fraction.denominator)
 
         criteria = tuple(
             CriterionScore(
@@ -85,7 +115,7 @@ def score(checklist: ChecklistVersion, answers: Sequence[CriterionAnswer]) -> Sc
                 applicable=option is not None,
                 weight=criterion.weight,
                 quality=option.quality if option is not None else None,
-                earned_points=earned,
+                earned_points=_finite_decimal(earned) if earned is not None else None,
                 normalized_points=normalized(earned) if earned is not None else None,
                 flagged=bool(option is not None and option.flagged),
             )
@@ -96,28 +126,26 @@ def score(checklist: ChecklistVersion, answers: Sequence[CriterionAnswer]) -> Sc
             section_earned = sum(
                 (earned for criterion, _, earned in raw
                  if criterion.section_id == section.id and earned is not None),
-                Decimal(0),
+                Fraction(0),
             )
             section_weight = sum(
-                (criterion.weight for criterion, option, _ in raw
+                (Fraction(criterion.weight) for criterion, option, _ in raw
                  if criterion.section_id == section.id and option is not None
                  and criterion.kind == "scored" and criterion.weight is not None),
-                Decimal(0),
+                Fraction(0),
             )
             sections.append(SectionScore(
                 section_id=section.id,
                 title=section.title,
-                earned_points=section_earned,
-                applicable_weight=section_weight,
+                earned_points=_finite_decimal(section_earned),
+                applicable_weight=_finite_decimal(section_weight),
                 normalized_points=normalized(section_earned),
                 normalized_maximum=normalized(section_weight),
             ))
-        unrounded = normalized(total_earned)
         return ScoreResult(
-            total=unrounded.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            if unrounded is not None else None,
-            applicable_weight=total_weight,
-            earned_points=total_earned,
+            total=_percentage_half_up(total_earned, total_weight) if total_weight else None,
+            applicable_weight=_finite_decimal(total_weight),
+            earned_points=_finite_decimal(total_earned),
             reason=None if total_weight else "Нет применимых критериев с положительным весом",
             criteria=criteria,
             sections=tuple(sections),

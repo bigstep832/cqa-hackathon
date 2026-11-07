@@ -156,3 +156,50 @@ def test_snapshots_are_deeply_immutable() -> None:
         snapshot.checklist.criteria[0].weight = Decimal("99")  # type: ignore[misc]
     assert isinstance(snapshot.checklist.criteria, tuple)
     assert isinstance(snapshot.checklist.criteria[0].options, tuple)
+
+
+@pytest.mark.parametrize("quality,expected", [
+    ("0.12344" + "9" * 55, "12.34"),
+    ("0.12345", "12.35"),
+    ("0.12345" + "0" * 55 + "1", "12.35"),
+])
+def test_high_precision_quality_is_not_rounded_before_total(quality: str, expected: str) -> None:
+    raw = load_synthetic_input().checklist.model_dump(mode="json")
+    raw["criteria"] = [raw["criteria"][0]]
+    raw["criteria"][0]["weight"] = "1"
+    raw["criteria"][0]["options"][0]["quality"] = quality
+    result = score(ChecklistVersion.model_validate(raw), (load_synthetic_answers()[0],))
+    assert result.total == Decimal(expected)
+    assert result.earned_points == Decimal(quality)
+    assert result.criteria[0].earned_points == Decimal(quality)
+    assert result.sections[0].earned_points == Decimal(quality)
+
+
+def test_weight_sum_preserves_more_than_50_decimal_places() -> None:
+    raw = load_synthetic_input().checklist.model_dump(mode="json")
+    raw["criteria"] = raw["criteria"][:2]
+    raw["criteria"][0]["weight"] = "1"
+    raw["criteria"][1]["weight"] = "0." + "0" * 59 + "1"
+    answers = answers_with(C02={"type": "boolean", "value": True})[:2]
+    result = score(ChecklistVersion.model_validate(raw), answers)
+    expected = Decimal("1." + "0" * 59 + "1")
+    assert result.applicable_weight == expected
+    assert result.earned_points == expected
+    assert result.sections[0].applicable_weight == expected
+    assert result.total == Decimal("100.00")
+
+
+def test_large_adjacent_scale_values_select_distinct_options() -> None:
+    large = 10 ** 30
+    raw = load_synthetic_input().checklist.model_dump(mode="json")
+    raw["criteria"] = [raw["criteria"][0]]
+    raw["criteria"][0]["answer_type"] = "scale"
+    raw["criteria"][0]["options"] = [
+        {"value": large, "label": "Первый", "description": "Ноль", "quality": "0"},
+        {"value": large + 1, "label": "Второй", "description": "Максимум", "quality": "1"},
+    ]
+    checklist = ChecklistVersion.model_validate(raw)
+    first = score(checklist, answers_with(C01={"type": "scale", "value": large})[:1])
+    second = score(checklist, answers_with(C01={"type": "scale", "value": large + 1})[:1])
+    assert first.total == Decimal("0.00")
+    assert second.total == Decimal("100.00")

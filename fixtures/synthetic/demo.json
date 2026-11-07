@@ -498,7 +498,7 @@
     "original_score": {
       "total": "85.38",
       "applicable_weight": "65",
-      "earned_points": "55.50",
+      "earned_points": "55.5",
       "reason": null,
       "criteria": [
         {
@@ -533,7 +533,7 @@
           "applicable": true,
           "weight": "20",
           "quality": "0.75",
-          "earned_points": "15.00",
+          "earned_points": "15",
           "normalized_points": "23.076923076923076923076923076923076923076923076923",
           "flagged": false
         },
@@ -586,7 +586,7 @@
         {
           "section_id": "resolution",
           "title": "Безопасность и решение",
-          "earned_points": "15.00",
+          "earned_points": "15",
           "applicable_weight": "20",
           "normalized_points": "23.076923076923076923076923076923076923076923076923",
           "normalized_maximum": "30.769230769230769230769230769230769230769230769231"
@@ -613,7 +613,7 @@
     "effective_score": {
       "total": "85.38",
       "applicable_weight": "65",
-      "earned_points": "55.50",
+      "earned_points": "55.5",
       "reason": null,
       "criteria": [
         {
@@ -648,7 +648,7 @@
           "applicable": true,
           "weight": "20",
           "quality": "0.75",
-          "earned_points": "15.00",
+          "earned_points": "15",
           "normalized_points": "23.076923076923076923076923076923076923076923076923",
           "flagged": false
         },
@@ -701,7 +701,7 @@
         {
           "section_id": "resolution",
           "title": "Безопасность и решение",
-          "earned_points": "15.00",
+          "earned_points": "15",
           "applicable_weight": "20",
           "normalized_points": "23.076923076923076923076923076923076923076923076923",
           "normalized_maximum": "30.769230769230769230769230769230769230769230769231"
