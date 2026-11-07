@@ -978,6 +978,8 @@ export interface components {
         OperatorProfile: {
             /** Average Call Seconds */
             average_call_seconds: number | null;
+            /** Average Call Span Seconds */
+            average_call_span_seconds: number | null;
             /** Average Effective Score */
             average_effective_score: number | null;
             /** Average First Reply Seconds */
@@ -1008,6 +1010,8 @@ export interface components {
             scored_conversations: number;
             /** Successful Calls */
             successful_calls: number;
+            /** Timed Call Spans */
+            timed_call_spans: number;
             /** Total Call Seconds */
             total_call_seconds: number;
             /** Unanswered Conversations */

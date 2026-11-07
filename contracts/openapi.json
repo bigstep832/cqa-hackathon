@@ -1847,6 +1847,17 @@
             ],
             "title": "Average Call Seconds"
           },
+          "average_call_span_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Call Span Seconds"
+          },
           "average_effective_score": {
             "anyOf": [
               {
@@ -1927,6 +1938,10 @@
             "title": "Successful Calls",
             "type": "integer"
           },
+          "timed_call_spans": {
+            "title": "Timed Call Spans",
+            "type": "integer"
+          },
           "total_call_seconds": {
             "title": "Total Call Seconds",
             "type": "integer"
@@ -1955,6 +1970,8 @@
           "measured_calls",
           "total_call_seconds",
           "average_call_seconds",
+          "timed_call_spans",
+          "average_call_span_seconds",
           "operator_messages",
           "client_messages",
           "first_reply_count",
