@@ -6,6 +6,7 @@ from fastapi import APIRouter, Header, Path, Query
 
 from app.api.boundary import StrictJSONRoute
 from app.api.history_models import EvaluationHistoryList, VersionHistoryList
+from app.api.operator_models import OperatorDirectory, OperatorProfile
 from app.contracts.models import (
     Appeal,
     AppealCreateRequest,
@@ -31,7 +32,7 @@ from app.contracts.models import (
     OperatorAssignment,
 )
 from app.evaluation.demo import build_demo_payload
-from app.services import appeals, imports, jobs
+from app.services import appeals, imports, jobs, operator_profiles
 from app.storage import conversations, history, workflow
 
 ERRORS: dict[int | str, dict[str, Any]] = {
@@ -111,6 +112,17 @@ def get_assignment(version_id: Identifier) -> OperatorAssignment:
 )
 def save_assignment(version_id: Identifier, request: OperatorAssignment) -> OperatorAssignment:
     return conversations.set_operator_assignment(version_id, request)
+
+
+@router.get("/api/v1/operators", response_model=OperatorDirectory, tags=["operators"])
+def list_operators() -> OperatorDirectory:
+    return operator_profiles.list_operators()
+
+
+@router.get("/api/v1/operators/{operator_id}/profile", response_model=OperatorProfile,
+            tags=["operators"])
+def get_operator_profile(operator_id: Identifier) -> OperatorProfile:
+    return operator_profiles.get_operator_profile(operator_id)
 
 
 @router.get(

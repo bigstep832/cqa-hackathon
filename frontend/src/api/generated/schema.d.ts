@@ -141,6 +141,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversation-versions/{version_id}/operator": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Assignment */
+        get: operations["get_assignment_api_v1_conversation_versions__version_id__operator_get"];
+        /** Save Assignment */
+        put: operations["save_assignment_api_v1_conversation_versions__version_id__operator_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -275,6 +293,40 @@ export interface paths {
         put?: never;
         /** Create Appeal */
         post: operations["create_appeal_api_v1_evaluations__evaluation_id__appeals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Operators */
+        get: operations["list_operators_api_v1_operators_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/operators/{operator_id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Operator Profile */
+        get: operations["get_operator_profile_api_v1_operators__operator_id__profile_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -861,6 +913,110 @@ export interface components {
              */
             type: "na";
         };
+        /** OperatorAssignment */
+        OperatorAssignment: {
+            /** Duration Seconds */
+            duration_seconds?: number | null;
+            /** Operator Id */
+            operator_id?: string | null;
+            /** Outcome */
+            outcome?: ("successful" | "unsuccessful") | null;
+        };
+        /** OperatorConversation */
+        OperatorConversation: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "agent chat" | "voice call";
+            /** Conversation Id */
+            conversation_id: string;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+            /** Effective Score */
+            effective_score: number | null;
+            /** Evaluation Id */
+            evaluation_id: string | null;
+            /**
+             * Language
+             * @enum {string}
+             */
+            language: "RU" | "KZ" | "EN";
+            /** Outcome */
+            outcome: ("successful" | "unsuccessful") | null;
+            /** Version Id */
+            version_id: string;
+        };
+        /** OperatorCriterion */
+        OperatorCriterion: {
+            /** Assessed Count */
+            assessed_count: number;
+            /** Average Quality */
+            average_quality: number | null;
+            /** Checklist Version Id */
+            checklist_version_id: string;
+            /** Criterion Id */
+            criterion_id: string;
+            /** Title */
+            title: string;
+        };
+        /** OperatorDirectory */
+        OperatorDirectory: {
+            /** Items */
+            items: components["schemas"]["OperatorDirectoryItem"][];
+            /** Unassigned Count */
+            unassigned_count: number;
+        };
+        /** OperatorDirectoryItem */
+        OperatorDirectoryItem: {
+            /** Conversation Count */
+            conversation_count: number;
+            /** Operator Id */
+            operator_id: string;
+        };
+        /** OperatorProfile */
+        OperatorProfile: {
+            /** Average Call Seconds */
+            average_call_seconds: number | null;
+            /** Average Effective Score */
+            average_effective_score: number | null;
+            /** Average First Reply Seconds */
+            average_first_reply_seconds: number | null;
+            /** Call Count */
+            call_count: number;
+            /** Chat Count */
+            chat_count: number;
+            /** Client Messages */
+            client_messages: number;
+            /** Conversation Count */
+            conversation_count: number;
+            /** Conversations */
+            conversations: components["schemas"]["OperatorConversation"][];
+            /** Criteria */
+            criteria: components["schemas"]["OperatorCriterion"][];
+            /** First Reply Count */
+            first_reply_count: number;
+            /** Flagged Conversations */
+            flagged_conversations: number;
+            /** Measured Calls */
+            measured_calls: number;
+            /** Operator Id */
+            operator_id: string;
+            /** Operator Messages */
+            operator_messages: number;
+            /** Scored Conversations */
+            scored_conversations: number;
+            /** Successful Calls */
+            successful_calls: number;
+            /** Total Call Seconds */
+            total_call_seconds: number;
+            /** Unanswered Conversations */
+            unanswered_conversations: number;
+            /** Unknown Calls */
+            unknown_calls: number;
+            /** Unsuccessful Calls */
+            unsuccessful_calls: number;
+        };
         /** ProviderCall */
         ProviderCall: {
             /** Attempt */
@@ -976,6 +1132,7 @@ export interface components {
              * @enum {string}
              */
             language: "RU" | "KZ" | "EN";
+            operator?: components["schemas"]["OperatorAssignment"] | null;
             /** Transcript */
             transcript: components["schemas"]["SourceMessage"][];
         };
@@ -1843,6 +2000,180 @@ export interface operations {
             };
         };
     };
+    get_assignment_api_v1_conversation_versions__version_id__operator_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatorAssignment"];
+                };
+            };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Entity not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Upstream source or provider failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source or workflow unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_assignment_api_v1_conversation_versions__version_id__operator_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OperatorAssignment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatorAssignment"];
+                };
+            };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Entity not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Upstream source or provider failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source or workflow unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_conversations_api_v1_conversations_get: {
         parameters: {
             query?: {
@@ -2554,6 +2885,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Appeal"];
+                };
+            };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Entity not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Upstream source or provider failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source or workflow unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_operators_api_v1_operators_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatorDirectory"];
+                };
+            };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Entity not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Upstream source or provider failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source or workflow unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_operator_profile_api_v1_operators__operator_id__profile_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operator_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperatorProfile"];
                 };
             };
             /** @description Browser origin or operation denied */
