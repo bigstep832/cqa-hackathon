@@ -28,6 +28,13 @@ frontend — в `frontend/package-lock.json`. Docker, uv и глобальные
 
 Из корня репозитория:
 
+Если репозиторий ещё не скачан:
+
+```powershell
+git clone https://github.com/bigstep832/cqa-hackathon.git
+cd cqa-hackathon
+```
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock
@@ -103,7 +110,8 @@ Git или чате. Реальные данные — только `data/privat
 `artifacts/private/`; оба каталога исключены из Git. Исходные PDF не публикуются.
 
 Создан публичный репозиторий [bigstep832/cqa-hackathon](https://github.com/bigstep832/cqa-hackathon).
-Статус отправки кода и CI фиксируется в отчёте bootstrap. Live-бюджет 0 до согласования
+Код отправлен в `main`; результаты локальных проверок — в отчёте bootstrap,
+текущий CI — во вкладке Actions. Live-бюджет 0 до согласования
 провайдера и разрешённой суммы. Хакатон начался, точный стоп-код ещё не назван. См. [DECISIONS](docs/DECISIONS.md).
 
 - [Первый task A](prompts/A_AI_LEAD.md): baseline и воспроизводимый eval.

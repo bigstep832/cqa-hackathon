@@ -32,7 +32,7 @@ Scorer реализован отдельно от настоящего AI; A о�
 - Первый небольшой блок: review scorer → схема разметки → adapter skeleton и один офлайн
   валидный/невалидный ответ. До разрешений не выполнять платный прогон.
 
-## B-01 · B · P0 · planned — Карточка и API client
+## B-01 · B · P0 · planned — Список, фильтры и рабочий API client
 
 - Каталоги: `frontend/`.
 - Зависимости: generated TS, synthetic demo; настоящий provider не нужен.
@@ -42,7 +42,9 @@ Scorer реализован отдельно от настоящего AI; A о�
 - Команды: `npm --prefix frontend run typecheck`, `lint`, `test`, `build`,
   `test:e2e` (каждая — через `npm --prefix frontend run <script>`).
 - Не входит: пересчёт итогов, hand-written DTO, изменение backend/domain.
-- Первый блок: API client + карточка synthetic demo + тест перехода evidence.
+- Уже готово в bootstrap: одна synthetic карточка и переход evidence. Используй её как основу.
+- Первый блок: typed клиент списка/версий/оценок, выбор диалога и фильтры языка/канала;
+  тесты через явный stub transport. До готовности C покажи 501 честно, без подмены live mock.
 
 ## C-01 · C · P0 · planned — Импорт и версии
 
