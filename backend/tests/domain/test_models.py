@@ -34,6 +34,18 @@ def test_invalid_quality(quality: str | None) -> None:
         ChecklistVersion.model_validate(raw)
 
 
+@pytest.mark.parametrize("value", ["", "   ", "\t\n", " done", "done ", "\u00a0done", "done\u202f"])
+def test_choice_options_reject_values_that_answers_would_change_or_reject(value: str) -> None:
+    raw = load_synthetic_input().checklist.model_dump(mode="json")
+    raw["criteria"][0].update(answer_type="choice", options=[{
+        "value": value, "label": "Вариант", "description": "Синтетический вариант",
+        "quality": "1", "flagged": False,
+    }])
+    with pytest.raises(ValidationError, match="Choice option values"):
+        ChecklistVersion.model_validate(raw)
+    assert raw["criteria"][0]["options"][0]["value"] == value
+
+
 def test_duplicate_ids_values_and_wrong_types_rejected() -> None:
     original = load_synthetic_input().checklist.model_dump(mode="json")
     for variant in range(5):

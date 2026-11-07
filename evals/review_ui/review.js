@@ -23,9 +23,8 @@ async function api(path, body) {
   return data;
 }
 function controls() {
-  for (const node of document.querySelectorAll("input,select,textarea")) node.disabled = busy;
+  for (const node of document.querySelectorAll("input,select,textarea,button")) node.disabled = busy;
   for (const id of ["save-selection","preview","freeze","grouped-by","seed","holdout-groups"]) $(id).disabled = busy || Boolean(state?.frozen);
-  for (const id of ["save-draft","finish","export-tune","export-holdout"]) $(id).disabled = busy;
 }
 async function run(action) {
   if (busy) return;
@@ -106,7 +105,7 @@ async function openRecord(id, force = false) {
       const header = el("header"); header.append(el("span",`#${message.order+1}`,{class:"message-number"}), el("strong",roles[message.speaker] || message.speaker),el("span",message.timestamp_raw || ""));
       item.append(header, el("p",message.text)); messages.append(item);
     }
-    messages.scrollTop = 0; renderAnnotation(); renderList();
+    messages.scrollTop = 0; renderAnnotation(); renderList(); controls();
   } catch(error) { notice(error.message, true); }
   finally { if (!force) { busy = false; controls(); } }
 }
@@ -129,7 +128,7 @@ function addRange(root, evidence = null) {
   const end = evidenceSelect(evidence?.end_message_id,"Конец доказательства"); end.className="range-end";
   for (const input of [start,end]) input.addEventListener("change", () => highlight(start.value,end.value));
   const remove = el("button","×",{type:"button",class:"remove-range","aria-label":"Удалить диапазон"});
-  remove.addEventListener("click",()=>{row.remove();changed();});
+  remove.addEventListener("click",()=>{if(busy)return;row.remove();changed();});
   row.append(field("От реплики",start),field("До реплики",end),remove); root.append(row);
 }
 function renderAnnotation() {
@@ -159,7 +158,7 @@ function renderAnnotation() {
     card.append(el("p","Подтверждающие реплики",{class:"evidence-heading"}));
     const ranges = el("div","",{class:"ranges"});
     for (const evidence of saved.evidence.length ? saved.evidence : [null]) addRange(ranges,evidence);
-    const add = el("button","Добавить диапазон",{type:"button",class:"add-range"}); add.addEventListener("click",()=>{addRange(ranges);changed();});
+    const add = el("button","Добавить диапазон",{type:"button",class:"add-range"}); add.addEventListener("click",()=>{if(busy)return;addRange(ranges);changed();});
     card.append(ranges,add);
     const details = el("details"); details.open = Boolean(saved.ambiguity_note || saved.resolution_note);
     details.append(el("summary","Спорный случай"),field("В чём неоднозначность",textarea(saved.ambiguity_note,"ambiguity")),field("Как решили спор",textarea(saved.resolution_note,"resolution"))); card.append(details); root.append(card);
