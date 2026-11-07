@@ -1,5 +1,9 @@
 import { api, type ChecklistVersion, type ConversationVersion, type Evaluation, type EvaluationRequest } from './client';
 
+export const evaluationStatusLabels: Record<Evaluation['status'], string> = {
+  queued: 'В очереди', running: 'Оценка выполняется', succeeded: 'Оценка завершена', failed: 'Оценка не выполнена',
+};
+
 export type EvaluationResult = { conversation: ConversationVersion; checklist: ChecklistVersion; evaluation: Evaluation };
 export type EvaluationAttempt = { body: EvaluationRequest; key: string; evaluationId?: string };
 

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:history": "playwright test --config playwright.history.config.ts",
     "generate:api": "openapi-typescript ../contracts/openapi.json -o src/api/generated/schema.d.ts",
     "generate:api:check": "openapi-typescript ../contracts/openapi.json -o src/api/generated/schema.d.ts --check",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build"

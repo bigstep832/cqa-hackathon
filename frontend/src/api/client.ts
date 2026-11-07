@@ -1,5 +1,9 @@
 import type { components, paths } from './generated/schema';
 
+export type VersionHistoryList = components['schemas']['VersionHistoryList'];
+export type EvaluationHistoryList = components['schemas']['EvaluationHistoryList'];
+export type EvaluationHistoryItem = components['schemas']['EvaluationHistoryItem'];
+export type HistoryQuery = NonNullable<paths['/api/v1/conversation-versions/{version_id}/history/versions']['get']['parameters']['query']>;
 export type ConversationVersion = components['schemas']['ConversationVersion'];
 export type ConversationList = components['schemas']['ConversationList'];
 export type ImportRequest = components['schemas']['ConversationImportRequest'];
@@ -73,6 +77,16 @@ export function createApiClient(transport: Transport = (url, init) => fetch(url,
     },
     getConversationVersion(id: string, signal?: AbortSignal) {
       return request<ConversationVersion>(`/api/v1/conversation-versions/${encodeURIComponent(id)}`, { signal });
+    },
+    listVersionHistory(versionId: string, query: HistoryQuery = {}, signal?: AbortSignal) {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) if (value != null) params.set(key, String(value));
+      return request<VersionHistoryList>(`/api/v1/conversation-versions/${encodeURIComponent(versionId)}/history/versions?${params}`, { signal });
+    },
+    listEvaluationHistory(versionId: string, query: HistoryQuery = {}, signal?: AbortSignal) {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) if (value != null) params.set(key, String(value));
+      return request<EvaluationHistoryList>(`/api/v1/conversation-versions/${encodeURIComponent(versionId)}/history/evaluations?${params}`, { signal });
     },
     listChecklists(signal?: AbortSignal) {
       return request<ChecklistList>('/api/v1/checklists', { signal });
