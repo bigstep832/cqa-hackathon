@@ -1,8 +1,16 @@
 """Limit JSON before decoding and reject browser mutations from unrelated sites."""
 
+import json
+from collections.abc import Callable, Coroutine
+from typing import Any
+
+from fastapi.routing import APIRoute
 from starlette.datastructures import Headers, MutableHeaders
-from starlette.responses import JSONResponse
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from app.services.json_input import decode_json
 
 LOCAL_ORIGINS = {
     "http://localhost:5173",
@@ -11,6 +19,27 @@ LOCAL_ORIGINS = {
     "http://127.0.0.1:8000",
 }
 MAX_BODY_BYTES = 16 * 1024 * 1024
+
+
+class StrictJSONRequest(Request):
+    async def json(self) -> Any:
+        try:
+            return decode_json(await self.body())
+        except (ValueError, RecursionError):
+            # FastAPI maps JSONDecodeError to our typed validation response.
+            raise json.JSONDecodeError("Invalid JSON", "", 0) from None
+
+
+class StrictJSONRoute(APIRoute):
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handle = super().get_route_handler()
+
+        async def handle_request(request: Request) -> Response:
+            if request.method == "POST":
+                request = StrictJSONRequest(request.scope, request.receive)
+            return await handle(request)
+
+        return handle_request
 
 
 class RequestBoundary:

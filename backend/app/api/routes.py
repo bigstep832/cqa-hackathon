@@ -4,6 +4,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Header, Path, Query
 
+from app.api.boundary import StrictJSONRoute
 from app.contracts.models import (
     Appeal,
     AppealCreateRequest,
@@ -40,7 +41,7 @@ ERRORS: dict[int | str, dict[str, Any]] = {
     502: {"model": ErrorResponse, "description": "Upstream source or provider failed"},
     503: {"model": ErrorResponse, "description": "Source or workflow unavailable"},
 }
-router = APIRouter(responses=ERRORS)
+router = APIRouter(responses=ERRORS, route_class=StrictJSONRoute)
 Identifier = Annotated[str, Path(min_length=1, max_length=200)]
 
 

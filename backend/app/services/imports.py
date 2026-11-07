@@ -1,19 +1,12 @@
 """Import a complete organizer response from a server-configured signed URL."""
 
-import json
 import os
 from urllib.parse import parse_qsl, urlencode, urlunsplit
 
 from app.contracts.models import ConversationImportRequest, DatasetImportRequest, ImportResponse
 from app.services import source_http
+from app.services.json_input import decode_json
 from app.storage.conversations import import_conversations
-
-
-def _unique_fields(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    fields = dict(pairs)
-    if len(fields) != len(pairs):
-        raise ValueError("Duplicate organizer field")
-    return fields
 
 
 def import_dataset(request: DatasetImportRequest) -> ImportResponse:
@@ -34,7 +27,7 @@ def import_dataset(request: DatasetImportRequest) -> ImportResponse:
     try:
         if status != 200:
             raise ValueError("Unexpected upstream status")
-        envelope = json.loads(payload, object_pairs_hook=_unique_fields)
+        envelope = decode_json(payload)
         if envelope["isSuccess"] is not True or envelope.get("error") not in (None, ""):
             raise ValueError("Source reported failure")
         records = envelope["data"]["records"]
