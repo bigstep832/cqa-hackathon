@@ -14,7 +14,7 @@ from app.contracts.models import EvaluationCreateRequest
 from app.evaluation.demo import load_synthetic_input
 from app.services import jobs, live_workflow
 from app.storage.database import get_engine
-from app.storage.workflow import get_calls, get_evaluation, initialize_workflow
+from app.storage.workflow import get_calls, get_evaluation, get_plan_id, initialize_workflow
 
 
 @pytest.fixture
@@ -97,6 +97,7 @@ def test_reserve_before_call_and_do_not_refund_after_failures(database, tmp_path
 def test_changed_plan_cannot_run_queued_job(database, tmp_path, monkeypatch):
     path = install_plan(tmp_path, monkeypatch)
     queued = jobs.create_evaluation(request("live"), "case")
+    assert get_plan_id(queued.id) == live_workflow.configured_plan()[0]
     previous = json.loads(path.read_text(encoding="utf-8"))
     path.write_text(json.dumps({**previous, "model": "replacement"}), encoding="utf-8")
     asyncio.run(jobs.run_claimed(*jobs.claim_job()))

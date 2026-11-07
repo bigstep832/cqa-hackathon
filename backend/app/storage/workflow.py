@@ -174,3 +174,13 @@ def get_calls(evaluation_id: str) -> tuple[ProviderCall, ...]:
         if row is None:
             raise error(404, "NOT_FOUND", "Оценка не найдена.")
         return TypeAdapter(tuple[ProviderCall, ...]).validate_json(row)
+
+
+def get_plan_id(evaluation_id: str) -> str | None:
+    with get_engine().connect() as db:
+        row = db.execute(
+            text("SELECT plan_id FROM evaluations WHERE id=:id"), {"id": evaluation_id}
+        ).one_or_none()
+        if row is None:
+            raise error(404, "NOT_FOUND", "Оценка не найдена.")
+        return row.plan_id
