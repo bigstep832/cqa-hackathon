@@ -11,8 +11,8 @@ OpenAPI/TS-типы, EvaluationProvider, синтетический MockEvaluati
 `/health` и `/api/v1/demo`, тестовый экран и офлайн-проверки.
 Остальные согласованные API-маршруты возвращают типизированный HTTP 501
 `NOT_IMPLEMENTED`. Настоящий AI, импорт, SQLite storage, jobs, апелляции и полный UI
-ещё предстоит реализовать. Результаты выполненных проверок — в отчёте bootstrap;
-наличие команды ниже само по себе не означает, что проверка пройдена.
+ещё предстоит реализовать. Результаты выполненных проверок — в
+[отчёте bootstrap](docs/BOOTSTRAP_REPORT.md).
 
 Начните с [AGENTS.md](AGENTS.md) и [START_HERE](docs/START_HERE.md).
 Роли: **A — AI и scoring**, **B — frontend**, **C — backend/workflow и интеграция**.
@@ -73,6 +73,13 @@ npm --prefix frontend run generate:api
 .\.venv\Scripts\python.exe scripts/verify.py
 .\.venv\Scripts\python.exe scripts/export_contracts.py --check
 npm --prefix frontend run generate:api:check
+```
+
+Для браузерного теста сначала запустите backend из раздела запуска. Playwright
+сам поднимает только Vite. На Windows с установленным Edge:
+
+```powershell
+$env:CQA_BROWSER_CHANNEL = 'msedge'
 npm --prefix frontend run test:e2e
 ```
 
@@ -81,9 +88,8 @@ npm --prefix frontend run test:e2e
 typecheck/lint/test/build. Playwright запускается отдельно и проверяет только
 реализованный bootstrap: открытие demo и переход к evidence. Сквозная приёмка
 импорта и апелляций — будущие задачи, см. [ACCEPTANCE](docs/ACCEPTANCE.md).
-Если браузер Playwright отсутствует, используйте локальный
-`npm --prefix frontend exec -- playwright install chromium`; это загрузка браузера,
-а не результат тестирования.
+Для Chromium выполните `cd frontend`, `npx playwright install chromium`, затем
+`npm run test:e2e` без переменной `CQA_BROWSER_CHANNEL`. В CI используется Chromium.
 
 ## Mock и live
 
@@ -96,9 +102,8 @@ API-ключи и адрес организаторов вводятся лок�
 Git или чате. Реальные данные — только `data/private/`, результаты —
 `artifacts/private/`; оба каталога исключены из Git. Исходные PDF не публикуются.
 
-Пользователь поручил создать новый репозиторий: выбрана цель `cqa-hackathon`, public,
-под подтверждённым GitHub-владельцем bigstep832. Создание и push ещё не подтверждены;
-ссылка на опубликованный репозиторий пока отсутствует. Live-бюджет 0 до согласования
+Создан публичный репозиторий [bigstep832/cqa-hackathon](https://github.com/bigstep832/cqa-hackathon).
+Статус отправки кода и CI фиксируется в отчёте bootstrap. Live-бюджет 0 до согласования
 провайдера и разрешённой суммы. Хакатон начался, точный стоп-код ещё не назван. См. [DECISIONS](docs/DECISIONS.md).
 
 - [Первый task A](prompts/A_AI_LEAD.md): baseline и воспроизводимый eval.

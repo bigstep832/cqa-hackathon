@@ -1,5 +1,5 @@
 ---
-name: cqa-rubric-regression
+name: cqa-rubric-validation
 description: Проверять изменения рубрики, scoring или пересчёта апелляций CQA по общей спецификации и regression tests.
 ---
 

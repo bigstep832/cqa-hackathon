@@ -33,3 +33,11 @@ PYTHONPATH=backend .venv/bin/python evals/compare.py --references data/private/r
 не включены. Храните разметку в `data/private`, результаты в `artifacts/private`.
 Переводы одного сценария держите в одном split. Holdout не используйте для постоянной
 настройки. Сначала сравните один baseline; Jev и перепроверку добавляйте по результатам.
+
+## Входные результаты
+
+Перед сравнением predictions должны пройти `validate_output` с соответствующими
+snapshots диалога и чек-листа. Одна `Evaluation.model_validate` проверяет структуру,
+но не доказывает допустимость ступеней и корректность evidence. `criterion_accuracy`,
+`score_mae` и `reference_na_count` относятся к успешно завершённой сравниваемой части;
+`failed` и `pending` показываются отдельно и должны быть отражены в отчёте качества.

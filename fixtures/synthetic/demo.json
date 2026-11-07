@@ -1,85 +1,261 @@
 {
-  "mode": "mock",
-  "notice": "Тестовые данные — не AI-оценка",
-  "conversation": {
-    "id": "synthetic-conversation-v1",
-    "conversation_id": "synthetic-example-001",
-    "source": "synthetic",
-    "dataset_group_id": "SYNTHETIC",
-    "language": "RU",
-    "channel": "agent chat",
-    "content_hash": "0bc5bca90075aca9215213b4621cabf77eb693df7ac98bc441ba4560210fa093",
-    "imported_at": "2026-11-07T00:00:00Z",
-    "messages": [
+  "checklist": {
+    "checklist_id": "default",
+    "created_at": "2026-11-07T00:00:00Z",
+    "criteria": [
       {
-        "message_id": "m1",
-        "speaker": "client",
-        "text": "Как скачать отчёт в учебном кабинете? И можно ли выбрать язык отчёта?",
-        "timestamp_raw": "00:00",
-        "order": 0,
-        "audio_offset_seconds": null
+        "allow_na": false,
+        "answer_type": "boolean",
+        "description": "Оператор поздоровался на языке клиента и представился в первом ответе. Приветствие бота не засчитывается оператору.",
+        "id": "C01",
+        "kind": "scored",
+        "na_condition": null,
+        "options": [
+          {
+            "description": "Оба действия выполнены оператором в первом ответе.",
+            "flagged": false,
+            "label": "Да",
+            "quality": "1",
+            "value": true
+          },
+          {
+            "description": "Оператор не выполнил хотя бы одно из двух действий.",
+            "flagged": false,
+            "label": "Нет",
+            "quality": "0",
+            "value": false
+          }
+        ],
+        "section_id": "opening",
+        "title": "Установление контакта",
+        "weight": "10"
       },
       {
-        "message_id": "m2",
-        "speaker": "bot",
-        "text": "Подключаю сотрудника учебной поддержки.",
-        "timestamp_raw": "00:03",
-        "order": 1,
-        "audio_offset_seconds": null
+        "allow_na": true,
+        "answer_type": "boolean",
+        "description": "Оператор учёл известные детали и уточнил недостающие до ответа. Если уточнение требовалось, но отсутствовало, это Нет.",
+        "id": "C02",
+        "kind": "scored",
+        "na_condition": "Данных для ответа хватало с самого начала.",
+        "options": [
+          {
+            "description": "Нужные уточнения заданы до ответа с учётом уже известных деталей.",
+            "flagged": false,
+            "label": "Да",
+            "quality": "1",
+            "value": true
+          },
+          {
+            "description": "Нужное уточнение пропущено, сделано поздно или проигнорированы известные детали.",
+            "flagged": false,
+            "label": "Нет",
+            "quality": "0",
+            "value": false
+          }
+        ],
+        "section_id": "opening",
+        "title": "Выявление потребности",
+        "weight": "15"
       },
       {
-        "message_id": "m3",
-        "speaker": "operator",
-        "text": "Здравствуйте! Меня зовут Дана. Откройте раздел «Документы» в учебном кабинете.",
-        "timestamp_raw": "00:12",
-        "order": 2,
-        "audio_offset_seconds": null
+        "allow_na": true,
+        "answer_type": "boolean",
+        "description": "Проверка личности подтверждена до раскрытия данных или защищённого действия. Просьба пройти проверку ещё не подтверждает её завершение; system может подтверждать проверку.",
+        "id": "C03",
+        "kind": "scored",
+        "na_condition": "Запрос не требовал идентификации, например общий вопрос о тарифах.",
+        "options": [
+          {
+            "description": "Необходимая идентификация подтверждена до защищённого действия.",
+            "flagged": false,
+            "label": "Да",
+            "quality": "1",
+            "value": true
+          },
+          {
+            "description": "Необходимая проверка не подтверждена или проведена после защищённого действия.",
+            "flagged": false,
+            "label": "Нет",
+            "quality": "0",
+            "value": false
+          }
+        ],
+        "section_id": "resolution",
+        "title": "Идентификация",
+        "weight": "20"
       },
       {
-        "message_id": "m4",
-        "speaker": "operator",
-        "text": "Выберите вкладку «Создать отчёт», затем скачайте файл.",
-        "timestamp_raw": "00:18",
-        "order": 3,
-        "audio_offset_seconds": null
+        "allow_na": true,
+        "answer_type": "scale",
+        "description": "Оценивается решение существенных вопросов или корректный следующий шаг. Отсутствие решения не равно N/A. Не придумывать тарифы и внутренние регламенты; недостаток справочных оснований указывать как ограничение.",
+        "id": "C04",
+        "kind": "scored",
+        "na_condition": "Чат закончился до формулировки запроса клиентом.",
+        "options": [
+          {
+            "description": "Ответа по существу нет или ключевая рекомендация ошибочна.",
+            "flagged": false,
+            "label": "0",
+            "quality": "0",
+            "value": 0
+          },
+          {
+            "description": "Есть общая подсказка, но клиенту всё ещё непонятно, как действовать.",
+            "flagged": false,
+            "label": "5",
+            "quality": "0.25",
+            "value": 5
+          },
+          {
+            "description": "Часть запроса закрыта, существенный вопрос остался открытым.",
+            "flagged": false,
+            "label": "10",
+            "quality": "0.5",
+            "value": 10
+          },
+          {
+            "description": "Основной вопрос решён, пропущена второстепенная деталь.",
+            "flagged": false,
+            "label": "15",
+            "quality": "0.75",
+            "value": 15
+          },
+          {
+            "description": "Все существенные вопросы закрыты или дан корректный следующий шаг.",
+            "flagged": false,
+            "label": "20",
+            "quality": "1",
+            "value": 20
+          }
+        ],
+        "section_id": "resolution",
+        "title": "Корректная и полная консультация",
+        "weight": "20"
       },
       {
-        "message_id": "m5",
-        "speaker": "operator",
-        "text": "Уточню: «Создать отчёт» — это кнопка, а не вкладка. После её нажатия появится кнопка скачивания.",
-        "timestamp_raw": "00:23",
-        "order": 4,
-        "audio_offset_seconds": null
+        "allow_na": false,
+        "answer_type": "boolean",
+        "description": "Оператор вежлив и реагирует на конкретную проблему, если клиент выразил недовольство или описал неудобство. В спокойном диалоге искусственное сочувствие не требуется.",
+        "id": "C05",
+        "kind": "scored",
+        "na_condition": null,
+        "options": [
+          {
+            "description": "Вежливое отношение; при недовольстве есть реакция на конкретную проблему.",
+            "flagged": false,
+            "label": "Да",
+            "quality": "1",
+            "value": true
+          },
+          {
+            "description": "Невежливое отношение или проигнорировано выраженное клиентом недовольство/неудобство.",
+            "flagged": false,
+            "label": "Нет",
+            "quality": "0",
+            "value": false
+          }
+        ],
+        "section_id": "conduct",
+        "title": "Эмпатия и клиентоориентированность",
+        "weight": "15"
       },
       {
-        "message_id": "m6",
-        "speaker": "client",
-        "text": "Отчёт скачался, спасибо.",
-        "timestamp_raw": "00:36",
-        "order": 5,
-        "audio_offset_seconds": null
+        "allow_na": false,
+        "answer_type": "scale",
+        "description": "Оцениваются ясность и связность, предупреждение при явном ожидании. Не дублировать полноту C04. Порог первой реакции в три минуты, теги и вложения не входят в оценку; отдельного критерия дикции/интонации нет.",
+        "id": "C06",
+        "kind": "scored",
+        "na_condition": null,
+        "options": [
+          {
+            "description": "Из-за бессвязности или противоречий ход диалога непонятен.",
+            "flagged": false,
+            "label": "0",
+            "quality": "0",
+            "value": 0
+          },
+          {
+            "description": "Клиенту приходится переспрашивать из-за формулировок или порядка ответов.",
+            "flagged": false,
+            "label": "4",
+            "quality": "0.4",
+            "value": 4
+          },
+          {
+            "description": "Один заметный сбой, но клиент понимает ответ и может продолжить.",
+            "flagged": false,
+            "label": "7",
+            "quality": "0.7",
+            "value": 7
+          },
+          {
+            "description": "Ответы ясные и связные; при явном ожидании оператор предупредил.",
+            "flagged": false,
+            "label": "10",
+            "quality": "1",
+            "value": 10
+          }
+        ],
+        "section_id": "conduct",
+        "title": "Управление диалогом, скорость и грамотность",
+        "weight": "15"
       },
       {
-        "message_id": "m7",
-        "speaker": "operator",
-        "text": "Рада помочь. Если появятся другие вопросы, обращайтесь. До свидания!",
-        "timestamp_raw": "00:42",
-        "order": 6,
-        "audio_offset_seconds": null
+        "allow_na": true,
+        "answer_type": "boolean",
+        "description": "Оператор подвёл итог или предложил дальнейшую помощь и попрощался. Закрытие оператором чата без прощания после ответа — Нет.",
+        "id": "C07",
+        "kind": "scored",
+        "na_condition": "Чат оборвался до возможности завершения.",
+        "options": [
+          {
+            "description": "Есть итог или предложение дальнейшей помощи и прощание.",
+            "flagged": false,
+            "label": "Да",
+            "quality": "1",
+            "value": true
+          },
+          {
+            "description": "Возможность завершения была, но отсутствует требуемая часть завершения.",
+            "flagged": false,
+            "label": "Нет",
+            "quality": "0",
+            "value": false
+          }
+        ],
+        "section_id": "conduct",
+        "title": "Завершение",
+        "weight": "5"
       },
       {
-        "message_id": "m8",
-        "speaker": "system",
-        "text": "Оператор завершил учебный чат.",
-        "timestamp_raw": "00:45",
-        "order": 7,
-        "audio_offset_seconds": null
+        "allow_na": false,
+        "answer_type": "boolean",
+        "description": "Да означает нарушение: оскорбление клиента, предложение платной услуги в обход компании или раскрытие конфиденциальной информации. Для частной платной услуги достаточно предложения. Задержка, обычная неточность или сам по себе запрос телефона не являются автоматическим основанием. Флаг не обнуляет итог.",
+        "id": "C08",
+        "kind": "flag",
+        "na_condition": null,
+        "options": [
+          {
+            "description": "Подтверждено хотя бы одно из трёх оснований грубой ошибки.",
+            "flagged": true,
+            "label": "Да, есть нарушение",
+            "quality": null,
+            "value": true
+          },
+          {
+            "description": "В проверенном диалоге три основания грубой ошибки не обнаружены.",
+            "flagged": false,
+            "label": "Нет",
+            "quality": null,
+            "value": false
+          }
+        ],
+        "section_id": "violations",
+        "title": "Грубые ошибки",
+        "weight": null
       }
     ],
-    "audio_url": null,
-    "synthetic": true
-  },
-  "checklist": {
+    "id": "checklist-default-v1",
     "name": "Качество диалога — исходный чек-лист",
     "sections": [
       {
@@ -99,632 +275,456 @@
         "title": "Грубые нарушения"
       }
     ],
-    "criteria": [
+    "version": 1
+  },
+  "conversation": {
+    "audio_url": null,
+    "channel": "agent chat",
+    "content_hash": "0bc5bca90075aca9215213b4621cabf77eb693df7ac98bc441ba4560210fa093",
+    "conversation_id": "synthetic-example-001",
+    "dataset_group_id": "SYNTHETIC",
+    "id": "synthetic-conversation-v1",
+    "imported_at": "2026-11-07T00:00:00Z",
+    "language": "RU",
+    "messages": [
       {
-        "id": "C01",
-        "section_id": "opening",
-        "title": "Установление контакта",
-        "description": "Оператор поздоровался на языке клиента и представился в первом ответе. Приветствие бота не засчитывается оператору.",
-        "kind": "scored",
-        "answer_type": "boolean",
-        "weight": "10",
-        "allow_na": false,
-        "na_condition": null,
-        "options": [
-          {
-            "value": true,
-            "label": "Да",
-            "description": "Оба действия выполнены оператором в первом ответе.",
-            "quality": "1",
-            "flagged": false
-          },
-          {
-            "value": false,
-            "label": "Нет",
-            "description": "Оператор не выполнил хотя бы одно из двух действий.",
-            "quality": "0",
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m1",
+        "order": 0,
+        "speaker": "client",
+        "text": "Как скачать отчёт в учебном кабинете? И можно ли выбрать язык отчёта?",
+        "timestamp_raw": "00:00"
       },
       {
-        "id": "C02",
-        "section_id": "opening",
-        "title": "Выявление потребности",
-        "description": "Оператор учёл известные детали и уточнил недостающие до ответа. Если уточнение требовалось, но отсутствовало, это Нет.",
-        "kind": "scored",
-        "answer_type": "boolean",
-        "weight": "15",
-        "allow_na": true,
-        "na_condition": "Данных для ответа хватало с самого начала.",
-        "options": [
-          {
-            "value": true,
-            "label": "Да",
-            "description": "Нужные уточнения заданы до ответа с учётом уже известных деталей.",
-            "quality": "1",
-            "flagged": false
-          },
-          {
-            "value": false,
-            "label": "Нет",
-            "description": "Нужное уточнение пропущено, сделано поздно или проигнорированы известные детали.",
-            "quality": "0",
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m2",
+        "order": 1,
+        "speaker": "bot",
+        "text": "Подключаю сотрудника учебной поддержки.",
+        "timestamp_raw": "00:03"
       },
       {
-        "id": "C03",
-        "section_id": "resolution",
-        "title": "Идентификация",
-        "description": "Проверка личности подтверждена до раскрытия данных или защищённого действия. Просьба пройти проверку ещё не подтверждает её завершение; system может подтверждать проверку.",
-        "kind": "scored",
-        "answer_type": "boolean",
-        "weight": "20",
-        "allow_na": true,
-        "na_condition": "Запрос не требовал идентификации, например общий вопрос о тарифах.",
-        "options": [
-          {
-            "value": true,
-            "label": "Да",
-            "description": "Необходимая идентификация подтверждена до защищённого действия.",
-            "quality": "1",
-            "flagged": false
-          },
-          {
-            "value": false,
-            "label": "Нет",
-            "description": "Необходимая проверка не подтверждена или проведена после защищённого действия.",
-            "quality": "0",
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m3",
+        "order": 2,
+        "speaker": "operator",
+        "text": "Здравствуйте! Меня зовут Дана. Откройте раздел «Документы» в учебном кабинете.",
+        "timestamp_raw": "00:12"
       },
       {
-        "id": "C04",
-        "section_id": "resolution",
-        "title": "Корректная и полная консультация",
-        "description": "Оценивается решение существенных вопросов или корректный следующий шаг. Отсутствие решения не равно N/A. Не придумывать тарифы и внутренние регламенты; недостаток справочных оснований указывать как ограничение.",
-        "kind": "scored",
-        "answer_type": "scale",
-        "weight": "20",
-        "allow_na": true,
-        "na_condition": "Чат закончился до формулировки запроса клиентом.",
-        "options": [
-          {
-            "value": 0,
-            "label": "0",
-            "description": "Ответа по существу нет или ключевая рекомендация ошибочна.",
-            "quality": "0",
-            "flagged": false
-          },
-          {
-            "value": 5,
-            "label": "5",
-            "description": "Есть общая подсказка, но клиенту всё ещё непонятно, как действовать.",
-            "quality": "0.25",
-            "flagged": false
-          },
-          {
-            "value": 10,
-            "label": "10",
-            "description": "Часть запроса закрыта, существенный вопрос остался открытым.",
-            "quality": "0.5",
-            "flagged": false
-          },
-          {
-            "value": 15,
-            "label": "15",
-            "description": "Основной вопрос решён, пропущена второстепенная деталь.",
-            "quality": "0.75",
-            "flagged": false
-          },
-          {
-            "value": 20,
-            "label": "20",
-            "description": "Все существенные вопросы закрыты или дан корректный следующий шаг.",
-            "quality": "1",
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m4",
+        "order": 3,
+        "speaker": "operator",
+        "text": "Выберите вкладку «Создать отчёт», затем скачайте файл.",
+        "timestamp_raw": "00:18"
       },
       {
-        "id": "C05",
-        "section_id": "conduct",
-        "title": "Эмпатия и клиентоориентированность",
-        "description": "Оператор вежлив и реагирует на конкретную проблему, если клиент выразил недовольство или описал неудобство. В спокойном диалоге искусственное сочувствие не требуется.",
-        "kind": "scored",
-        "answer_type": "boolean",
-        "weight": "15",
-        "allow_na": false,
-        "na_condition": null,
-        "options": [
-          {
-            "value": true,
-            "label": "Да",
-            "description": "Вежливое отношение; при недовольстве есть реакция на конкретную проблему.",
-            "quality": "1",
-            "flagged": false
-          },
-          {
-            "value": false,
-            "label": "Нет",
-            "description": "Невежливое отношение или проигнорировано выраженное клиентом недовольство/неудобство.",
-            "quality": "0",
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m5",
+        "order": 4,
+        "speaker": "operator",
+        "text": "Уточню: «Создать отчёт» — это кнопка, а не вкладка. После её нажатия появится кнопка скачивания.",
+        "timestamp_raw": "00:23"
       },
       {
-        "id": "C06",
-        "section_id": "conduct",
-        "title": "Управление диалогом, скорость и грамотность",
-        "description": "Оцениваются ясность и связность, предупреждение при явном ожидании. Не дублировать полноту C04. Порог первой реакции в три минуты, теги и вложения не входят в оценку; отдельного критерия дикции/интонации нет.",
-        "kind": "scored",
-        "answer_type": "scale",
-        "weight": "15",
-        "allow_na": false,
-        "na_condition": null,
-        "options": [
-          {
-            "value": 0,
-            "label": "0",
-            "description": "Из-за бессвязности или противоречий ход диалога непонятен.",
-            "quality": "0",
-            "flagged": false
-          },
-          {
-            "value": 4,
-            "label": "4",
-            "description": "Клиенту приходится переспрашивать из-за формулировок или порядка ответов.",
-            "quality": "0.4",
-            "flagged": false
-          },
-          {
-            "value": 7,
-            "label": "7",
-            "description": "Один заметный сбой, но клиент понимает ответ и может продолжить.",
-            "quality": "0.7",
-            "flagged": false
-          },
-          {
-            "value": 10,
-            "label": "10",
-            "description": "Ответы ясные и связные; при явном ожидании оператор предупредил.",
-            "quality": "1",
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m6",
+        "order": 5,
+        "speaker": "client",
+        "text": "Отчёт скачался, спасибо.",
+        "timestamp_raw": "00:36"
       },
       {
-        "id": "C07",
-        "section_id": "conduct",
-        "title": "Завершение",
-        "description": "Оператор подвёл итог или предложил дальнейшую помощь и попрощался. Закрытие оператором чата без прощания после ответа — Нет.",
-        "kind": "scored",
-        "answer_type": "boolean",
-        "weight": "5",
-        "allow_na": true,
-        "na_condition": "Чат оборвался до возможности завершения.",
-        "options": [
-          {
-            "value": true,
-            "label": "Да",
-            "description": "Есть итог или предложение дальнейшей помощи и прощание.",
-            "quality": "1",
-            "flagged": false
-          },
-          {
-            "value": false,
-            "label": "Нет",
-            "description": "Возможность завершения была, но отсутствует требуемая часть завершения.",
-            "quality": "0",
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m7",
+        "order": 6,
+        "speaker": "operator",
+        "text": "Рада помочь. Если появятся другие вопросы, обращайтесь. До свидания!",
+        "timestamp_raw": "00:42"
       },
       {
-        "id": "C08",
-        "section_id": "violations",
-        "title": "Грубые ошибки",
-        "description": "Да означает нарушение: оскорбление клиента, предложение платной услуги в обход компании или раскрытие конфиденциальной информации. Для частной платной услуги достаточно предложения. Задержка, обычная неточность или сам по себе запрос телефона не являются автоматическим основанием. Флаг не обнуляет итог.",
-        "kind": "flag",
-        "answer_type": "boolean",
-        "weight": null,
-        "allow_na": false,
-        "na_condition": null,
-        "options": [
-          {
-            "value": true,
-            "label": "Да, есть нарушение",
-            "description": "Подтверждено хотя бы одно из трёх оснований грубой ошибки.",
-            "quality": null,
-            "flagged": true
-          },
-          {
-            "value": false,
-            "label": "Нет",
-            "description": "В проверенном диалоге три основания грубой ошибки не обнаружены.",
-            "quality": null,
-            "flagged": false
-          }
-        ]
+        "audio_offset_seconds": null,
+        "message_id": "m8",
+        "order": 7,
+        "speaker": "system",
+        "text": "Оператор завершил учебный чат.",
+        "timestamp_raw": "00:45"
       }
     ],
-    "id": "checklist-default-v1",
-    "checklist_id": "default",
-    "version": 1,
-    "created_at": "2026-11-07T00:00:00Z"
+    "source": "synthetic",
+    "synthetic": true
   },
   "evaluation": {
-    "id": "synthetic-evaluation-v1",
-    "conversation_version_id": "synthetic-conversation-v1",
     "checklist_version_id": "checklist-default-v1",
-    "status": "succeeded",
+    "conversation_version_id": "synthetic-conversation-v1",
     "created_at": "2026-11-07T00:00:00Z",
+    "effective_score": {
+      "applicable_weight": "65",
+      "criteria": [
+        {
+          "applicable": true,
+          "criterion_id": "C01",
+          "earned_points": "10",
+          "flagged": false,
+          "normalized_points": "15.384615384615384615384615384615384615384615384615",
+          "quality": "1",
+          "weight": "10"
+        },
+        {
+          "applicable": false,
+          "criterion_id": "C02",
+          "earned_points": null,
+          "flagged": false,
+          "normalized_points": null,
+          "quality": null,
+          "weight": "15"
+        },
+        {
+          "applicable": false,
+          "criterion_id": "C03",
+          "earned_points": null,
+          "flagged": false,
+          "normalized_points": null,
+          "quality": null,
+          "weight": "20"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C04",
+          "earned_points": "15",
+          "flagged": false,
+          "normalized_points": "23.076923076923076923076923076923076923076923076923",
+          "quality": "0.75",
+          "weight": "20"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C05",
+          "earned_points": "15",
+          "flagged": false,
+          "normalized_points": "23.076923076923076923076923076923076923076923076923",
+          "quality": "1",
+          "weight": "15"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C06",
+          "earned_points": "10.5",
+          "flagged": false,
+          "normalized_points": "16.153846153846153846153846153846153846153846153846",
+          "quality": "0.7",
+          "weight": "15"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C07",
+          "earned_points": "5",
+          "flagged": false,
+          "normalized_points": "7.6923076923076923076923076923076923076923076923077",
+          "quality": "1",
+          "weight": "5"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C08",
+          "earned_points": null,
+          "flagged": false,
+          "normalized_points": null,
+          "quality": null,
+          "weight": null
+        }
+      ],
+      "earned_points": "55.5",
+      "flags": [],
+      "reason": null,
+      "sections": [
+        {
+          "applicable_weight": "10",
+          "earned_points": "10",
+          "normalized_maximum": "15.384615384615384615384615384615384615384615384615",
+          "normalized_points": "15.384615384615384615384615384615384615384615384615",
+          "section_id": "opening",
+          "title": "Начало и понимание запроса"
+        },
+        {
+          "applicable_weight": "20",
+          "earned_points": "15",
+          "normalized_maximum": "30.769230769230769230769230769230769230769230769231",
+          "normalized_points": "23.076923076923076923076923076923076923076923076923",
+          "section_id": "resolution",
+          "title": "Безопасность и решение"
+        },
+        {
+          "applicable_weight": "35",
+          "earned_points": "30.5",
+          "normalized_maximum": "53.846153846153846153846153846153846153846153846154",
+          "normalized_points": "46.923076923076923076923076923076923076923076923077",
+          "section_id": "conduct",
+          "title": "Ведение и завершение диалога"
+        },
+        {
+          "applicable_weight": "0",
+          "earned_points": "0",
+          "normalized_maximum": "0",
+          "normalized_points": "0",
+          "section_id": "violations",
+          "title": "Грубые нарушения"
+        }
+      ],
+      "total": "85.38"
+    },
+    "failure": null,
+    "id": "synthetic-evaluation-v1",
+    "original_score": {
+      "applicable_weight": "65",
+      "criteria": [
+        {
+          "applicable": true,
+          "criterion_id": "C01",
+          "earned_points": "10",
+          "flagged": false,
+          "normalized_points": "15.384615384615384615384615384615384615384615384615",
+          "quality": "1",
+          "weight": "10"
+        },
+        {
+          "applicable": false,
+          "criterion_id": "C02",
+          "earned_points": null,
+          "flagged": false,
+          "normalized_points": null,
+          "quality": null,
+          "weight": "15"
+        },
+        {
+          "applicable": false,
+          "criterion_id": "C03",
+          "earned_points": null,
+          "flagged": false,
+          "normalized_points": null,
+          "quality": null,
+          "weight": "20"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C04",
+          "earned_points": "15",
+          "flagged": false,
+          "normalized_points": "23.076923076923076923076923076923076923076923076923",
+          "quality": "0.75",
+          "weight": "20"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C05",
+          "earned_points": "15",
+          "flagged": false,
+          "normalized_points": "23.076923076923076923076923076923076923076923076923",
+          "quality": "1",
+          "weight": "15"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C06",
+          "earned_points": "10.5",
+          "flagged": false,
+          "normalized_points": "16.153846153846153846153846153846153846153846153846",
+          "quality": "0.7",
+          "weight": "15"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C07",
+          "earned_points": "5",
+          "flagged": false,
+          "normalized_points": "7.6923076923076923076923076923076923076923076923077",
+          "quality": "1",
+          "weight": "5"
+        },
+        {
+          "applicable": true,
+          "criterion_id": "C08",
+          "earned_points": null,
+          "flagged": false,
+          "normalized_points": null,
+          "quality": null,
+          "weight": null
+        }
+      ],
+      "earned_points": "55.5",
+      "flags": [],
+      "reason": null,
+      "sections": [
+        {
+          "applicable_weight": "10",
+          "earned_points": "10",
+          "normalized_maximum": "15.384615384615384615384615384615384615384615384615",
+          "normalized_points": "15.384615384615384615384615384615384615384615384615",
+          "section_id": "opening",
+          "title": "Начало и понимание запроса"
+        },
+        {
+          "applicable_weight": "20",
+          "earned_points": "15",
+          "normalized_maximum": "30.769230769230769230769230769230769230769230769231",
+          "normalized_points": "23.076923076923076923076923076923076923076923076923",
+          "section_id": "resolution",
+          "title": "Безопасность и решение"
+        },
+        {
+          "applicable_weight": "35",
+          "earned_points": "30.5",
+          "normalized_maximum": "53.846153846153846153846153846153846153846153846154",
+          "normalized_points": "46.923076923076923076923076923076923076923076923077",
+          "section_id": "conduct",
+          "title": "Ведение и завершение диалога"
+        },
+        {
+          "applicable_weight": "0",
+          "earned_points": "0",
+          "normalized_maximum": "0",
+          "normalized_points": "0",
+          "section_id": "violations",
+          "title": "Грубые нарушения"
+        }
+      ],
+      "total": "85.38"
+    },
     "output": {
       "answers": [
         {
-          "criterion_id": "C01",
           "answer": {
             "type": "boolean",
             "value": true
           },
-          "explanation": "В первом ответе оператор поздоровался и представился. Это заранее заданный синтетический пример.",
+          "criterion_id": "C01",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m3",
-              "end_message_id": "m3"
+              "end_message_id": "m3",
+              "start_message_id": "m3"
             }
-          ]
+          ],
+          "explanation": "В первом ответе оператор поздоровался и представился. Это заранее заданный синтетический пример."
         },
         {
+          "answer": {
+            "reason": "Клиент сразу назвал учебный кабинет и конкретное действие; данных для инструкции достаточно.",
+            "type": "na"
+          },
           "criterion_id": "C02",
-          "answer": {
-            "type": "na",
-            "reason": "Клиент сразу назвал учебный кабинет и конкретное действие; данных для инструкции достаточно."
-          },
-          "explanation": "Дополнительное выяснение потребности не требовалось.",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m1",
-              "end_message_id": "m1"
+              "end_message_id": "m1",
+              "start_message_id": "m1"
             }
-          ]
+          ],
+          "explanation": "Дополнительное выяснение потребности не требовалось."
         },
         {
+          "answer": {
+            "reason": "Дана общая инструкция по учебному интерфейсу без раскрытия личных данных и защищённых действий.",
+            "type": "na"
+          },
           "criterion_id": "C03",
-          "answer": {
-            "type": "na",
-            "reason": "Дана общая инструкция по учебному интерфейсу без раскрытия личных данных и защищённых действий."
-          },
-          "explanation": "Запрос не требует проверки личности.",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m1",
-              "end_message_id": "m5"
+              "end_message_id": "m5",
+              "start_message_id": "m1"
             }
-          ]
+          ],
+          "explanation": "Запрос не требует проверки личности."
         },
         {
-          "criterion_id": "C04",
           "answer": {
             "type": "scale",
             "value": 15
           },
-          "explanation": "Основной вопрос о скачивании закрыт; второстепенный вопрос о языке отчёта остался без ответа. Описание учебного интерфейса вымышлено и не является регламентом компании.",
+          "criterion_id": "C04",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m1",
-              "end_message_id": "m7"
+              "end_message_id": "m7",
+              "start_message_id": "m1"
             }
-          ]
+          ],
+          "explanation": "Основной вопрос о скачивании закрыт; второстепенный вопрос о языке отчёта остался без ответа. Описание учебного интерфейса вымышлено и не является регламентом компании."
         },
         {
-          "criterion_id": "C05",
           "answer": {
             "type": "boolean",
             "value": true
           },
-          "explanation": "Оператор вежлив. Клиент не выражает недовольства, поэтому отдельная фраза сочувствия не требуется.",
+          "criterion_id": "C05",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m3",
-              "end_message_id": "m7"
+              "end_message_id": "m7",
+              "start_message_id": "m3"
             }
-          ]
+          ],
+          "explanation": "Оператор вежлив. Клиент не выражает недовольства, поэтому отдельная фраза сочувствия не требуется."
         },
         {
-          "criterion_id": "C06",
           "answer": {
             "type": "scale",
             "value": 7
           },
-          "explanation": "Один заметный сбой: кнопку назвали вкладкой. Оператор сам уточнил формулировку, клиент смог скачать отчёт.",
+          "criterion_id": "C06",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m4",
-              "end_message_id": "m6"
+              "end_message_id": "m6",
+              "start_message_id": "m4"
             }
-          ]
+          ],
+          "explanation": "Один заметный сбой: кнопку назвали вкладкой. Оператор сам уточнил формулировку, клиент смог скачать отчёт."
         },
         {
-          "criterion_id": "C07",
           "answer": {
             "type": "boolean",
             "value": true
           },
-          "explanation": "Есть предложение дальнейшей помощи и прощание.",
+          "criterion_id": "C07",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m7",
-              "end_message_id": "m7"
+              "end_message_id": "m7",
+              "start_message_id": "m7"
             }
-          ]
+          ],
+          "explanation": "Есть предложение дальнейшей помощи и прощание."
         },
         {
-          "criterion_id": "C08",
           "answer": {
             "type": "boolean",
             "value": false
           },
-          "explanation": "Во всём учебном диалоге не обнаружены оскорбление, частное платное предложение или раскрытие конфиденциальных данных.",
+          "criterion_id": "C08",
           "evidence": [
             {
               "conversation_version_id": "synthetic-conversation-v1",
-              "start_message_id": "m1",
-              "end_message_id": "m8"
+              "end_message_id": "m8",
+              "start_message_id": "m1"
             }
-          ]
+          ],
+          "explanation": "Во всём учебном диалоге не обнаружены оскорбление, частное платное предложение или раскрытие конфиденциальных данных."
         }
       ],
       "metadata": {
-        "mode": "mock",
-        "provider": "fixture",
-        "model": "synthetic-v1",
+        "calls": [],
         "instruction_version": "synthetic-v1",
+        "mode": "mock",
+        "model": "synthetic-v1",
         "pipeline_version": "bootstrap-v1",
-        "calls": []
+        "provider": "fixture"
       }
     },
-    "original_score": {
-      "total": "85.38",
-      "applicable_weight": "65",
-      "earned_points": "55.5",
-      "reason": null,
-      "criteria": [
-        {
-          "criterion_id": "C01",
-          "applicable": true,
-          "weight": "10",
-          "quality": "1",
-          "earned_points": "10",
-          "normalized_points": "15.384615384615384615384615384615384615384615384615",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C02",
-          "applicable": false,
-          "weight": "15",
-          "quality": null,
-          "earned_points": null,
-          "normalized_points": null,
-          "flagged": false
-        },
-        {
-          "criterion_id": "C03",
-          "applicable": false,
-          "weight": "20",
-          "quality": null,
-          "earned_points": null,
-          "normalized_points": null,
-          "flagged": false
-        },
-        {
-          "criterion_id": "C04",
-          "applicable": true,
-          "weight": "20",
-          "quality": "0.75",
-          "earned_points": "15",
-          "normalized_points": "23.076923076923076923076923076923076923076923076923",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C05",
-          "applicable": true,
-          "weight": "15",
-          "quality": "1",
-          "earned_points": "15",
-          "normalized_points": "23.076923076923076923076923076923076923076923076923",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C06",
-          "applicable": true,
-          "weight": "15",
-          "quality": "0.7",
-          "earned_points": "10.5",
-          "normalized_points": "16.153846153846153846153846153846153846153846153846",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C07",
-          "applicable": true,
-          "weight": "5",
-          "quality": "1",
-          "earned_points": "5",
-          "normalized_points": "7.6923076923076923076923076923076923076923076923077",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C08",
-          "applicable": true,
-          "weight": null,
-          "quality": null,
-          "earned_points": null,
-          "normalized_points": null,
-          "flagged": false
-        }
-      ],
-      "sections": [
-        {
-          "section_id": "opening",
-          "title": "Начало и понимание запроса",
-          "earned_points": "10",
-          "applicable_weight": "10",
-          "normalized_points": "15.384615384615384615384615384615384615384615384615",
-          "normalized_maximum": "15.384615384615384615384615384615384615384615384615"
-        },
-        {
-          "section_id": "resolution",
-          "title": "Безопасность и решение",
-          "earned_points": "15",
-          "applicable_weight": "20",
-          "normalized_points": "23.076923076923076923076923076923076923076923076923",
-          "normalized_maximum": "30.769230769230769230769230769230769230769230769231"
-        },
-        {
-          "section_id": "conduct",
-          "title": "Ведение и завершение диалога",
-          "earned_points": "30.5",
-          "applicable_weight": "35",
-          "normalized_points": "46.923076923076923076923076923076923076923076923077",
-          "normalized_maximum": "53.846153846153846153846153846153846153846153846154"
-        },
-        {
-          "section_id": "violations",
-          "title": "Грубые нарушения",
-          "earned_points": "0",
-          "applicable_weight": "0",
-          "normalized_points": "0",
-          "normalized_maximum": "0"
-        }
-      ],
-      "flags": []
-    },
-    "effective_score": {
-      "total": "85.38",
-      "applicable_weight": "65",
-      "earned_points": "55.5",
-      "reason": null,
-      "criteria": [
-        {
-          "criterion_id": "C01",
-          "applicable": true,
-          "weight": "10",
-          "quality": "1",
-          "earned_points": "10",
-          "normalized_points": "15.384615384615384615384615384615384615384615384615",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C02",
-          "applicable": false,
-          "weight": "15",
-          "quality": null,
-          "earned_points": null,
-          "normalized_points": null,
-          "flagged": false
-        },
-        {
-          "criterion_id": "C03",
-          "applicable": false,
-          "weight": "20",
-          "quality": null,
-          "earned_points": null,
-          "normalized_points": null,
-          "flagged": false
-        },
-        {
-          "criterion_id": "C04",
-          "applicable": true,
-          "weight": "20",
-          "quality": "0.75",
-          "earned_points": "15",
-          "normalized_points": "23.076923076923076923076923076923076923076923076923",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C05",
-          "applicable": true,
-          "weight": "15",
-          "quality": "1",
-          "earned_points": "15",
-          "normalized_points": "23.076923076923076923076923076923076923076923076923",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C06",
-          "applicable": true,
-          "weight": "15",
-          "quality": "0.7",
-          "earned_points": "10.5",
-          "normalized_points": "16.153846153846153846153846153846153846153846153846",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C07",
-          "applicable": true,
-          "weight": "5",
-          "quality": "1",
-          "earned_points": "5",
-          "normalized_points": "7.6923076923076923076923076923076923076923076923077",
-          "flagged": false
-        },
-        {
-          "criterion_id": "C08",
-          "applicable": true,
-          "weight": null,
-          "quality": null,
-          "earned_points": null,
-          "normalized_points": null,
-          "flagged": false
-        }
-      ],
-      "sections": [
-        {
-          "section_id": "opening",
-          "title": "Начало и понимание запроса",
-          "earned_points": "10",
-          "applicable_weight": "10",
-          "normalized_points": "15.384615384615384615384615384615384615384615384615",
-          "normalized_maximum": "15.384615384615384615384615384615384615384615384615"
-        },
-        {
-          "section_id": "resolution",
-          "title": "Безопасность и решение",
-          "earned_points": "15",
-          "applicable_weight": "20",
-          "normalized_points": "23.076923076923076923076923076923076923076923076923",
-          "normalized_maximum": "30.769230769230769230769230769230769230769230769231"
-        },
-        {
-          "section_id": "conduct",
-          "title": "Ведение и завершение диалога",
-          "earned_points": "30.5",
-          "applicable_weight": "35",
-          "normalized_points": "46.923076923076923076923076923076923076923076923077",
-          "normalized_maximum": "53.846153846153846153846153846153846153846153846154"
-        },
-        {
-          "section_id": "violations",
-          "title": "Грубые нарушения",
-          "earned_points": "0",
-          "applicable_weight": "0",
-          "normalized_points": "0",
-          "normalized_maximum": "0"
-        }
-      ],
-      "flags": []
-    },
-    "failure": null
-  }
+    "status": "succeeded"
+  },
+  "mode": "mock",
+  "notice": "Тестовые данные — не AI-оценка"
 }

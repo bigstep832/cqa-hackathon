@@ -39,7 +39,7 @@ B — за удобный и исправный UI. Общий лимит защ
 ## 24-й час: фиксация
 
 - Проверить `git status`, согласованный набор проверок и финальный commit.
-- Выполнить `python scripts/freeze.py` в сдаваемом checkout.
+- Выполнить `python scripts/freeze.py` с обязательными параметрами ниже в сдаваемом checkout.
 - Проверить `artifacts/private/freeze.json`: git SHA и применённые версии.
 - Подтвердить, что публичный commit совпадает со сдаваемой версией.
 - После стоп-кода исходники не менять. Новые данные и checklist через UI
@@ -47,6 +47,17 @@ B — за удобный и исправный UI. Общий лимит защ
 
 Точные дата/время стоп-кода ещё открыты; ориентир 24 часа от фактического старта.
 Не запускать freeze-скрипт сейчас ради видимости сдачи.
+
+В момент сдачи подставьте реальные идентификаторы и путь к экспортированному snapshot
+активного чек-листа. Команда требует чистый Git checkout:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/freeze.py --provider ACTUAL_PROVIDER --model ACTUAL_MODEL_ID --instruction-version v1 --pipeline-version v1 --checklist-version-id ACTUAL_VERSION --checklist-snapshot data/private/active-checklist.json
+```
+
+`ACTUAL_*` — значения команды, не готовая конфигурация. Экспорт текущего snapshot
+из будущего хранилища входит в C-05. Метаданные freeze локальны; сам скрипт не блокирует Git
+и не отправляет результаты организаторам.
 
 ## Что назвать честно
 
