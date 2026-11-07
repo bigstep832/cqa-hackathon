@@ -2,6 +2,7 @@
 
 import os
 import re
+from html.parser import HTMLParser
 
 from fastapi import APIRouter, Header
 from fastapi.responses import Response
@@ -12,6 +13,7 @@ from app.storage.conversations import audio_source
 
 router = APIRouter()
 _MAX_AUDIO = 64 * 1024 * 1024
+_MAX_PLAYER_HTML = 256 * 1024
 _RANGE = re.compile(r"bytes=([0-9]*)-([0-9]*)", re.I)
 _CONTENT_RANGE = re.compile(r"bytes ([0-9]+)-([0-9]+)/(\*|[0-9]+)", re.I)
 _AUDIO_TYPES = {
@@ -28,6 +30,48 @@ _AUDIO_TYPES = {
     "audio/3gpp",
     "audio/amr",
 }
+
+
+class _AudioPlayer(HTMLParser):
+    """Read one audio source as data. Never execute HTML or resolve a base URL."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.audio_count = 0
+        self.audio_depth = 0
+        self.sources: list[str] = []
+        self.ambiguous = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "audio":
+            self.audio_count += 1
+            self.audio_depth += 1
+        if tag == "audio" or (tag == "source" and self.audio_depth):
+            sources = [value for name, value in attrs if name == "src"]
+            if len(sources) > 1:
+                self.ambiguous = True
+            self.sources.extend(value.strip() for value in sources if value and value.strip())
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "audio":
+            self.audio_depth = max(0, self.audio_depth - 1)
+
+
+def _player_source(data: bytes) -> str:
+    try:
+        if len(data) > _MAX_PLAYER_HTML:
+            raise ValueError("Oversized player")
+        player = _AudioPlayer()
+        player.feed(data.decode("utf-8"))
+        player.close()
+        if player.audio_count != 1 or len(player.sources) != 1 or player.ambiguous:
+            raise ValueError("Expected one audio source")
+        url = player.sources[0]
+        if len(url) > 16_384 or any(character.isspace() for character in url):
+            raise ValueError("Invalid audio source")
+        return url
+    except (ValueError, UnicodeError):
+        raise source_http.failure(502, "INVALID_MEDIA", "Не удалось прочитать аудиоплеер.") from None
 
 
 def _media_origin(url: str, *, configured: bool = False) -> tuple[str | None, int]:
@@ -110,6 +154,20 @@ def get_audio(version_id: str, range_header: str | None = Header(None, alias="Ra
     requested = _requested_range(range_header) if range_header is not None else None
     request_headers = {"Range": range_header} if range_header is not None else {}
     status, headers, data = source_http.fetch(url, headers=request_headers, max_bytes=_MAX_AUDIO)
+    mime = headers.get("content-type", "").split(";")[0].strip().lower()
+    if status == 200 and mime == "text/html":
+        media_url = _player_source(data)
+        try:
+            permitted = _media_origin(media_url) in allowed
+        except ValueError:
+            permitted = False
+        if not permitted:
+            raise source_http.failure(403, "MEDIA_ORIGIN_NOT_ALLOWED", "Источник аудио не разрешён.")
+        # A single indirection, with the same range and independent origin check.
+        # A second HTML page or redirect is rejected by the audio checks below.
+        status, headers, data = source_http.fetch(
+            media_url, headers=request_headers, max_bytes=_MAX_AUDIO
+        )
     if status == 416:
         raise source_http.failure(416, "INVALID_RANGE", "Диапазон недоступен.")
     mime = headers.get("content-type", "").split(";")[0].strip().lower()

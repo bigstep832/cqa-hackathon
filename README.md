@@ -6,8 +6,10 @@
 к Ground Truth на 10 новых диалогах. Формула сравнения жюри неизвестна.
 
 Backend сохраняет диалоги и версии чек-листов в SQLite, выполняет задания оценки,
-принимает апелляции и выгружает исходные оценки в официальный формат. Frontend этой
-ветки показывает синтетический пример. Инструкции по настройке, запуску заданий и
+принимает апелляции и выгружает исходные оценки в официальный формат. Frontend содержит
+список и импорт диалогов, историю версий и оценок, запуск оценки, редактор чек-листа,
+апелляции, evidence и аудиоплеер. Отдельное demo явно использует синтетические данные.
+Инструкции по настройке, запуску заданий и
 проверке результатов приведены в [контракте API](docs/API_CONTRACT.md),
 [инструкции по экспорту](docs/EXPORT.md) и [отчёте участника A](docs/A01_OFFLINE_HANDOFF.md).
 Работа с настоящими данными и точность относительно Ground Truth требуют отдельной приёмки.
@@ -93,8 +95,17 @@ npm --prefix frontend run test:e2e
 
 На POSIX замените `.\.venv\Scripts\python.exe` на `.venv/bin/python`.
 `verify.py` объединяет ruff, mypy, pytest, проверку экспорта и frontend
-typecheck/lint/test/build. Playwright запускается отдельно и проверяет только
-экран demo и переход к evidence. Pytest проходит работу API с SQLite,
+typecheck/lint/test/build. Playwright запускается отдельно: большинство сценариев
+проверяет UI на синтетических API-ответах; demo и апелляции проходят настоящий backend.
+Отдельная проверка истории поднимает FastAPI + SQLite, подменяя только внешние транспорты:
+
+```powershell
+$env:CQA_TEST_PYTHON = (Resolve-Path .\.venv\Scripts\python.exe).Path
+npm --prefix frontend run test:e2e:history
+```
+
+Порты 8001 и 5174 должны быть свободны. Этот тест не измеряет качество модели.
+Pytest проверяет работу API с SQLite,
 перезапуск и апелляции. Состояние UI-приёмки отражено в [ACCEPTANCE](docs/ACCEPTANCE.md).
 Для Chromium выполните `cd frontend`, `npx playwright install chromium`, затем
 `npm run test:e2e` без переменной `CQA_BROWSER_CHANNEL`. В CI используется Chromium.
