@@ -16,6 +16,12 @@ export type AppealList = components['schemas']['AppealList'];
 export type AppealRequest = components['schemas']['AppealCreateRequest'];
 export type DecisionRequest = components['schemas']['DecisionCreateRequest'];
 export type DecisionResponse = components['schemas']['DecisionResponse'];
+type Json200<T extends { responses: { 200: { content: { 'application/json': unknown } } } }> = T['responses'][200]['content']['application/json'];
+export type OperatorList = Json200<paths['/api/v1/operators']['get']>;
+export type OperatorProfile = Json200<paths['/api/v1/operators/{operator_id}/profile']['get']>;
+type AssignmentPath = paths['/api/v1/conversation-versions/{version_id}/operator'];
+export type OperatorAssignment = Json200<AssignmentPath['get']>;
+export type OperatorAssignmentInput = AssignmentPath['put']['requestBody']['content']['application/json'];
 export type Answer = components['schemas']['CriterionAnswer']['answer'];
 type ErrorField = components['schemas']['ErrorField'];
 export type Transport = (input: string, init?: RequestInit) => Promise<Response>;
@@ -64,6 +70,20 @@ export function createApiClient(transport: Transport = (url, init) => fetch(url,
   }
 
   return {
+    listOperators(signal?: AbortSignal) {
+      return request<OperatorList>('/api/v1/operators', { signal });
+    },
+    operatorProfile(operatorId: string, signal?: AbortSignal) {
+      return request<OperatorProfile>(`/api/v1/operators/${encodeURIComponent(operatorId)}/profile`, { signal });
+    },
+    getOperatorAssignment(versionId: string, signal?: AbortSignal) {
+      return request<OperatorAssignment>(`/api/v1/conversation-versions/${encodeURIComponent(versionId)}/operator`, { signal });
+    },
+    saveOperatorAssignment(versionId: string, body: OperatorAssignmentInput, signal?: AbortSignal) {
+      return request<OperatorAssignment>(`/api/v1/conversation-versions/${encodeURIComponent(versionId)}/operator`, {
+        method: 'PUT', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+    },
     listConversations(query: ConversationQuery = {}, signal?: AbortSignal) {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(query)) {

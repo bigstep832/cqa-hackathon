@@ -6,6 +6,8 @@ import { EvaluationWorkspace } from './EvaluationWorkspace';
 import { ChecklistsScreen } from './checklists/ChecklistsScreen';
 import { AppealsScreen } from './AppealsScreen';
 import { appealRoute } from './api/appeals';
+import { OperatorsScreen } from './operators/OperatorsScreen';
+import { operatorHref, operatorRoute } from './operators/route';
 
 type LoadState =
   | { status: 'loading' }
@@ -15,13 +17,18 @@ type LoadState =
 
 const viewDescriptions = {
   conversations: 'Диалоги, транскрипты и оценка качества работы оператора.',
+  operators: 'Нагрузка, результаты звонков и качество обслуживания по операторам.',
   checklists: 'Критерии качества и сохранённые версии правил оценки.',
   appeals: 'Рассмотрение обращений с сохранением исходной оценки и доказательств.',
   demo: 'Синтетический сценарий для проверки интерфейса без AI-запросов.',
 };
+const viewTitles: Record<keyof typeof viewDescriptions, string> = {
+  conversations: 'Диалоги', operators: 'Операторы', checklists: 'Чек-листы', appeals: 'Апелляции', demo: 'Проверка диалога',
+};
 function NavIcon({ name }: { name: keyof typeof viewDescriptions }) {
   const paths = {
     conversations: 'M4 4h16v12H9l-5 4V4Z',
+    operators: 'M3 20v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7-5a3 3 0 0 1 0 6m1 3a5 5 0 0 1 4 5',
     checklists: 'M9 6h11M9 12h11M9 18h11M3 5l1 1 2-2M3 11l1 1 2-2M3 17l1 1 2-2',
     appeals: 'M12 3v18M4 7h16M4 7l-3 6h6L4 7Zm16 0-3 6h6l-3-6ZM7 21h10',
     demo: 'm8 5 11 7-11 7V5Z',
@@ -37,16 +44,35 @@ function Mark({ small = false }: { small?: boolean }) {
 }
 
 export function App() {
-  const [view, selectView] = useState<'conversations' | 'checklists' | 'demo' | 'appeals'>(() => appealRoute() !== null ? 'appeals' : 'conversations');
+  const [view, selectView] = useState<keyof typeof viewDescriptions>(() =>
+    operatorRoute() !== null ? 'operators' : appealRoute() !== null ? 'appeals' : 'conversations');
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [operatorId, setOperatorId] = useState(() => operatorRoute() ?? '');
   const [appealId, setAppealId] = useState(() => appealRoute() ?? '');
-  function setView(next: typeof view) {
-    selectView(next); setAppealId('');
-    history.replaceState(null, '', next === 'appeals' ? '#appeals' : `${location.pathname}${location.search}`);
+  function setView(next: typeof view, selectedConversation: string | null = null) {
+    selectView(next); setAppealId(''); setConversationId(selectedConversation); setOperatorId('');
+    const url = next === 'appeals' ? '#appeals' : next === 'operators' ? operatorHref('') : `${location.pathname}${location.search}`;
+    if ((view === 'operators' || next === 'operators') && new URL(url, location.href).href !== location.href) {
+      history.pushState({ cqaView: next, conversationId: selectedConversation }, '', url);
+    } else {
+      history.replaceState({ cqaView: next, conversationId: selectedConversation }, '', url);
+    }
   }
   useEffect(() => {
-    const change = () => { const id = appealRoute(); if (id !== null) { setAppealId(id); selectView('appeals'); } };
+    const change = () => {
+      const operator = operatorRoute();
+      if (operator !== null) { setOperatorId(operator); selectView('operators'); return; }
+      const id = appealRoute();
+      if (id !== null) { setAppealId(id); selectView('appeals'); return; }
+      if (!location.hash) {
+        const prior = history.state?.cqaView;
+        setConversationId(typeof history.state?.conversationId === 'string' ? history.state.conversationId : null);
+        selectView(prior === 'demo' || prior === 'checklists' ? prior : 'conversations');
+      }
+    };
     window.addEventListener('hashchange', change);
-    return () => window.removeEventListener('hashchange', change);
+    window.addEventListener('popstate', change);
+    return () => { window.removeEventListener('hashchange', change); window.removeEventListener('popstate', change); };
   }, []);
   return <div className="app-shell">
     <a className="skip-link" href="#main">Перейти к содержимому</a>
@@ -55,6 +81,7 @@ export function App() {
       <nav className="sidebar-section" aria-label="Рабочее пространство">
         <span className="sidebar-label">Рабочее пространство</span>
         <button className={`nav-link${view === 'conversations' ? ' nav-link--active' : ''}`} aria-pressed={view === 'conversations'} onClick={() => setView('conversations')}><NavIcon name="conversations" />Диалоги</button>
+        <button className={`nav-link${view === 'operators' ? ' nav-link--active' : ''}`} aria-pressed={view === 'operators'} onClick={() => setView('operators')}><NavIcon name="operators" />Операторы</button>
         <button className={`nav-link${view === 'checklists' ? ' nav-link--active' : ''}`} aria-pressed={view === 'checklists'} onClick={() => setView('checklists')}><NavIcon name="checklists" />Чек-листы</button>
         <button className={`nav-link${view === 'appeals' ? ' nav-link--active' : ''}`} aria-pressed={view === 'appeals'} onClick={() => setView('appeals')}><NavIcon name="appeals" />Апелляции</button>
         <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}><NavIcon name="demo" />Демо · mock</button>
@@ -62,9 +89,10 @@ export function App() {
       <div className="sidebar-bottom"><p>DT20 · CQA</p><span className="muted">Диалоги и версии из серверного хранилища.</span></div>
     </aside>
     <main id="main" className="main" tabIndex={-1}>
-      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : view === 'checklists' ? 'Чек-листы' : view === 'appeals' ? 'Апелляции' : 'Диалоги'}</p>
-        <h1>{view === 'demo' ? 'Проверка диалога' : view === 'checklists' ? 'Чек-листы' : view === 'appeals' ? 'Апелляции' : 'Диалоги'}</h1><p className="page-description">{viewDescriptions[view]}</p></div></header>
-      {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : view === 'appeals' ? <AppealsScreen key={appealId} evaluationId={appealId} /> : <ConversationsScreen />}
+      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : viewTitles[view]}</p>
+        <h1>{viewTitles[view]}</h1><p className="page-description">{viewDescriptions[view]}</p></div></header>
+      {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : view === 'appeals' ? <AppealsScreen key={appealId} evaluationId={appealId} />
+        : view === 'operators' ? <OperatorsScreen operatorId={operatorId} openConversation={id => setView('conversations', id)} /> : <ConversationsScreen initialVersionId={conversationId} />}
       <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
     </main>
   </div>;

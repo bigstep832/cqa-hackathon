@@ -4,15 +4,16 @@ import { ApiFailure } from './ApiFailure';
 import { ConversationImport } from './ConversationImport';
 import { EvaluationWorkspace } from './EvaluationWorkspace';
 import { ConversationAudio } from './ConversationAudio';
+import { AssignmentPanel } from './operators/AssignmentPanel';
 
 type Resource<T> = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: T };
 const pageSize = 25;
 const speakerLabels: Record<string, string> = { client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система' };
 
-export function ConversationsScreen() {
+export function ConversationsScreen({ initialVersionId = null }: { initialVersionId?: string | null } = {}) {
   const [query, setQuery] = useState<ConversationQuery>({ offset: 0, limit: pageSize });
   const [revision, setRevision] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialVersionId);
   const [detailAttempt, setDetailAttempt] = useState(0);
   const [evaluating, setEvaluating] = useState(false);
 
@@ -125,6 +126,7 @@ function ConversationDetail({ id, retry, onEvaluate }: { id: string; retry: () =
         <ConversationAudio conversation={state.data} />
         <span className="version-label">Версия диалога: {state.data.id}</span>
       </div>
+      <AssignmentPanel conversation={state.data} />
     </>}
   </section>;
 }
