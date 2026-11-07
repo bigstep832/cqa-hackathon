@@ -37,6 +37,7 @@ from app.services.live_workflow import (
 from app.storage.conversations import get_version
 from app.storage.database import get_engine, write_transaction
 from app.storage.workflow import (
+    dispatches_snapshot,
     error,
     evaluation_snapshot,
     get_checklist_version,
@@ -180,23 +181,22 @@ async def run_claimed(
             case = EvaluationInput(
                 conversation=conversation, checklist=checklist, settings=settings
             )
-            provider = create_provider()
+            async with asyncio.timeout(settings.timeout_seconds):
+                output = await create_provider().evaluate(case)
         else:
             current_id, plan = configured_plan()
             if plan_id != current_id:
                 raise ValueError("Authorized plan changed")
             settings = resolve_settings(request, plan)
-            # Each adapter records a ProviderCall on its own timeout. Leave enough of the
-            # overall job deadline for retries and recording the final timeout/error.
-            attempt_seconds = max(1, (settings.timeout_seconds - 1) // plan.max_attempts)
             case = EvaluationInput(
-                conversation=conversation,
-                checklist=checklist,
-                settings=settings.model_copy(update={"timeout_seconds": attempt_seconds}),
+                conversation=conversation, checklist=checklist, settings=settings
             )
-            provider = live_provider(case, current_id, plan)
-        async with asyncio.timeout(settings.timeout_seconds):
-            output = await provider.evaluate(case)
+            deadline = asyncio.get_running_loop().time() + settings.timeout_seconds
+            async with asyncio.timeout_at(deadline):
+                async with live_provider(
+                    evaluation.id, case, current_id, plan, deadline
+                ) as provider:
+                    output = await provider.evaluate(case)
         calls = output.metadata.calls
         validate_output(case, output)
         result = score(checklist, output.answers)
@@ -222,6 +222,20 @@ async def run_claimed(
 def save_completed(completed: Evaluation, calls: tuple[ProviderCall, ...]) -> None:
     with write_transaction() as db:
         if evaluation_snapshot(db, completed.id).status == "running":
+            if db.execute(
+                text("SELECT plan_id FROM evaluations WHERE id=:id"), {"id": completed.id}
+            ).scalar():
+                started = {
+                    (d.provider, d.model, d.attempt) for d in dispatches_snapshot(db, completed.id)
+                }
+                verified = tuple(c for c in calls if (c.provider, c.model, c.attempt) in started)
+                if completed.status == "succeeded" and (not verified or verified != calls):
+                    completed = fail(
+                        evaluation_snapshot(db, completed.id),
+                        "MISSING_PROVENANCE",
+                        "Не удалось подтвердить вызов оценщика.",
+                    )
+                calls = verified
             update_evaluation(db, completed)
             db.execute(
                 text("UPDATE evaluations SET calls=:calls WHERE id=:id"),

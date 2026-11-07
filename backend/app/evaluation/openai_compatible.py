@@ -152,10 +152,12 @@ class OpenAICompatibleEvaluationProvider:
         *,
         client: httpx.AsyncClient | None = None,
         on_attempt: Callable[[], None] | None = None,
+        on_call: Callable[[ProviderCall], None] | None = None,
     ) -> None:
         self.config = config
         self._client = client
         self._on_attempt = on_attempt
+        self._on_call = on_call
         base_url = OPENAI_BASE_URL if config.provider == "openai" else _local_base_url(config.base_url)
         self._endpoint = base_url + "/chat/completions"
 
@@ -241,6 +243,8 @@ class OpenAICompatibleEvaluationProvider:
                 output_tokens=_token_count(usage, "completion_tokens"),
                 cost_usd=None,
             ))
+            if self._on_call is not None:
+                self._on_call(calls[-1])
             if failure is None:
                 assert response is not None
                 try:

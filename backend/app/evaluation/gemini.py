@@ -164,10 +164,12 @@ class GeminiEvaluationProvider:
         *,
         client: httpx.AsyncClient | None = None,
         on_attempt: Callable[[], None] | None = None,
+        on_call: Callable[[ProviderCall], None] | None = None,
     ) -> None:
         self.config = config
         self._client = client
         self._on_attempt = on_attempt
+        self._on_call = on_call
 
     async def evaluate(self, evaluation_input: EvaluationInput) -> EvaluationOutput:
         try:
@@ -244,6 +246,8 @@ class GeminiEvaluationProvider:
                 latency_ms=max(0.0, (time.perf_counter() - started) * 1000),
                 input_tokens=input_tokens, output_tokens=output_tokens, cost_usd=None,
             ))
+            if self._on_call is not None:
+                self._on_call(calls[-1])
             if error_code is None and (status_code is None or not 200 <= status_code < 300):
                 error_code = "HTTP_ERROR"
                 retryable = status_code in {408, 429} or (status_code is not None and status_code >= 500)

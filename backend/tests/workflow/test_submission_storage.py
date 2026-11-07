@@ -2,8 +2,12 @@
 
 import asyncio
 import json
+import os
+import subprocess
+import sys
 from contextlib import contextmanager
 from datetime import date
+from pathlib import Path
 
 import httpx
 import pytest
@@ -11,16 +15,14 @@ from scripts import prepare_batch
 from scripts import submission as cli
 
 from app.contracts.models import ConversationImportRequest
-from app.evaluation.factory import create_provider
 from app.services import jobs, live_workflow
 from app.services.submission import ReleaseSelection, SubmissionError, read_json
 from app.storage.conversations import import_conversations
-from app.storage.database import get_engine
-from app.storage.workflow import get_evaluation
+from app.storage.database import get_engine, write_transaction
+from app.storage.workflow import get_calls, get_dispatches, get_evaluation, initialize_workflow
 
 
-@pytest.fixture
-def completed_submission(tmp_path, monkeypatch):
+def prepare_release(tmp_path, monkeypatch, attempts=1):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path.as_posix()}/synthetic.sqlite3")
     private = tmp_path / "artifacts/private"
     private.mkdir(parents=True)
@@ -30,7 +32,7 @@ def completed_submission(tmp_path, monkeypatch):
     path = tmp_path / "results/prod/results.json"
     today = date.today().isoformat()
     plan = {"provider": "local", "model": "synthetic-transport", "local_base_url": "http://127.0.0.1:1/v1",
-            "dataset_group_ids": ["TEST"], "max_cases": 10, "max_requests": 10,
+            "dataset_group_ids": ["TEST"], "max_cases": 10, "max_requests": 10 * attempts, "max_attempts": attempts,
             "max_output_tokens": 20, "budget_usd": "0", "data_transfer_approved": True,
             "pricing": {"input_token_limit": 9999, "output_token_limit": 20,
                         "input_usd_per_million": "0", "output_usd_per_million": "0",
@@ -41,49 +43,137 @@ def completed_submission(tmp_path, monkeypatch):
     monkeypatch.setenv("LIVE_EVAL_ENABLED", "true")
     monkeypatch.setenv("CQA_LIVE_PLAN", str(plan_path))
 
+    imported = import_conversations(ConversationImportRequest.model_validate({
+        "dataset_group_id": "TEST",
+        "records": [{"conversation_id": f"test-{n}", "channel": "agent chat", "language": "RU",
+                     "transcript": [{"speaker": "operator", "timestamp": "00:02",
+                                     "text": "Учебный диалог."}]} for n in range(10)]}),
+        source="organizer")
+    args = (selection_file, "prod", "TEST", "DT20")
+    assert prepare_batch.prepare(*args, enqueue=False) == 0
+    assert prepare_batch.prepare(*args, enqueue=True) == 10
+    selected = ReleaseSelection.model_validate(read_json(selection_file))
+    assert set(selected.jobs) == set(imported.conversation_version_ids)
+    assert len(set(selected.jobs.values())) == 10
+    assert prepare_batch.prepare(*args, enqueue=True) == 10
+    assert ReleaseSelection.model_validate(read_json(selection_file)) == selected
+    return selection_file, path, selected
+
+
+@pytest.fixture
+def completed_submission(tmp_path, monkeypatch):
+    selection_file, path, _ = prepare_release(tmp_path, monkeypatch)
+
     async def exercise():
         def reject(request):
             return httpx.Response(503, json={"error": "test-private-fragment"})
 
-        async with httpx.AsyncClient(transport=httpx.MockTransport(reject)) as test_client:
-            monkeypatch.setattr(live_workflow, "create_provider",
-                                lambda config, *, on_attempt: create_provider(
-                                    config, client=test_client, on_attempt=on_attempt))
-            imported = import_conversations(ConversationImportRequest.model_validate({
-                "dataset_group_id": "TEST",
-                "records": [{"conversation_id": f"test-{n}", "channel": "agent chat", "language": "RU",
-                             "transcript": [{"speaker": "operator", "timestamp": "00:02",
-                                             "text": "Учебный диалог."}]} for n in range(10)]}),
-                source="organizer")
-            args = (selection_file, "prod", "TEST", "DT20")
-            assert prepare_batch.prepare(*args, enqueue=False) == 0
-            assert prepare_batch.prepare(*args, enqueue=True) == 10
-            selected = ReleaseSelection.model_validate(read_json(selection_file))
-            assert set(selected.jobs) == set(imported.conversation_version_ids)
-            assert len(set(selected.jobs.values())) == 10
-            assert prepare_batch.prepare(*args, enqueue=True) == 10
-            assert ReleaseSelection.model_validate(read_json(selection_file)) == selected
-            with pytest.raises(SubmissionError, match="still pending"):
-                cli.release("export", selection_file, False)
-            with pytest.raises(SubmissionError, match="No actual model"):
-                cli.release("export", selection_file, True)
-            assert not path.exists()
-            for _ in range(9):
-                await jobs.run_claimed(*jobs.claim_job())
+        monkeypatch.setattr(live_workflow, "outbound_transport", lambda: httpx.MockTransport(reject))
+        with pytest.raises(SubmissionError, match="still pending"):
+            cli.release("export", selection_file, False)
+        with pytest.raises(SubmissionError, match="No actual model"):
             cli.release("export", selection_file, True)
-            sealed = path.read_bytes()
-            last = jobs.claim_job()
-            assert read_json(path)["results"][-1]["error"] == "Оценка не завершилась к сроку."
-            await jobs.run_claimed(*last)
-            assert jobs.claim_job() is None and get_evaluation(last[0].id).status == "failed"
-            cli.release("validate", selection_file, True)
-            cli.release("validate", selection_file, False)
-            cli.release("export", selection_file, True)
-            assert path.read_bytes() == sealed
+        assert not path.exists()
+        for _ in range(9):
+            await jobs.run_claimed(*jobs.claim_job())
+        cli.release("export", selection_file, True)
+        sealed = path.read_bytes()
+        last = jobs.claim_job()
+        assert read_json(path)["results"][-1]["error"] == "Оценка не завершилась к сроку."
+        await jobs.run_claimed(*last)
+        assert jobs.claim_job() is None and get_evaluation(last[0].id).status == "failed"
+        cli.release("validate", selection_file, True)
+        cli.release("validate", selection_file, False)
+        cli.release("export", selection_file, True)
+        assert path.read_bytes() == sealed
 
     try:
         asyncio.run(exercise())
         yield selection_file, path
+    finally:
+        get_engine().dispose()
+
+
+def test_crash_at_http_dispatch_keeps_model_and_freezes_pending_errors(tmp_path, monkeypatch):
+    selection_file, path, selected = prepare_release(tmp_path, monkeypatch, attempts=2)
+    # The child exits abruptly inside the transport; no worker cleanup or final save runs.
+    script = """
+import asyncio, os, sys
+import httpx
+from app.services import live_workflow, jobs
+received = 0
+def terminate_on_dispatch(request):
+    global received
+    received += 1
+    if received == int(sys.argv[1]):
+        os._exit(73)
+    return httpx.Response(503)
+live_workflow.outbound_transport = lambda: httpx.MockTransport(terminate_on_dispatch)
+asyncio.run(jobs.run_claimed(*jobs.claim_job()))
+"""
+    root = Path(__file__).resolve().parents[3]
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([str(root / "backend"), str(root)])}
+    ids = list(selected.jobs.values())
+    try:
+        with pytest.raises(SubmissionError, match="No actual model"):
+            cli.release("export", selection_file, True)
+        for ordinal in (1, 2):
+            process = subprocess.run([sys.executable, "-c", script, str(ordinal)], cwd=root,
+                                     env=env, timeout=15, capture_output=True)
+            assert process.returncode == 73, process.stderr
+            job_id = ids[ordinal - 1]
+            assert [d.attempt for d in get_dispatches(job_id)] == list(range(1, ordinal + 1))
+            assert [c.attempt for c in get_calls(job_id)] == list(range(1, ordinal))
+            if ordinal == 1:
+                # No measured ProviderCall exists anywhere at this cutoff yet.
+                cli.release("export", selection_file, True)
+                sealed = path.read_bytes()
+                rows = read_json(path)
+                assert rows["model"] == {"mode": "local", "name": "local/synthetic-transport"}
+                assert len(rows["results"]) == 10 and all(r["status"] == "error" for r in rows["results"])
+            jobs.recover_interrupted_jobs()
+            assert get_evaluation(job_id).failure.code == "WORKER_INTERRUPTED"
+        cli.release("validate", selection_file, True)
+        cli.release("export", selection_file, True)
+        assert path.read_bytes() == sealed
+    finally:
+        get_engine().dispose()
+
+
+def test_export_ten_body_timeouts_with_two_wire_attempts_each(tmp_path, monkeypatch):
+    selection_file, path, selected = prepare_release(tmp_path, monkeypatch, attempts=2)
+    resolve = jobs.resolve_settings
+    monkeypatch.setattr(jobs, "resolve_settings",
+                        lambda *args: resolve(*args).model_copy(update={"timeout_seconds": 1}))
+    received = []
+
+    class StalledBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            await asyncio.sleep(15)
+            yield b""
+
+    def stall(request):
+        received.append(request.url.path)
+        return httpx.Response(200, stream=StalledBody())
+
+    monkeypatch.setattr(live_workflow, "outbound_transport", lambda: httpx.MockTransport(stall))
+
+    async def consume():
+        for _ in range(5):
+            await asyncio.gather(*(jobs.run_claimed(*jobs.claim_job()) for _ in range(2)))
+
+    try:
+        asyncio.run(consume())
+        assert len(received) == 20
+        for job_id in selected.jobs.values():
+            assert get_evaluation(job_id).failure.code == "PROVIDER_TIMEOUT"
+            assert [call.attempt for call in get_calls(job_id)] == [1, 2]
+            assert [d.attempt for d in get_dispatches(job_id)] == [1, 2]
+        cli.release("export", selection_file, False)
+        cli.release("validate", selection_file, False)
+        document = read_json(path)
+        assert document["model"] == {"mode": "local", "name": "local/synthetic-transport"}
+        assert len(document["results"]) == 10 and all(r["status"] == "error" for r in document["results"])
     finally:
         get_engine().dispose()
 
@@ -160,3 +250,14 @@ def test_older_export_cannot_overwrite_newer_publication(completed_submission, m
     cli.release("export", new_selection_file, True)
     cli.release("validate", new_selection_file, False)
     assert read_json(path)["results"][-1]["conversation_id"] == "replacement-9"
+
+
+def test_pre_journal_database_and_cutoff_are_still_readable(completed_submission):
+    selection_file, path = completed_submission
+    expected = path.read_bytes()
+    with write_transaction() as db:
+        db.exec_driver_sql("DROP TABLE evaluation_dispatches")
+    cli.release("validate", selection_file, True)
+    initialize_workflow()
+    cli.release("export", selection_file, True)
+    assert path.read_bytes() == expected

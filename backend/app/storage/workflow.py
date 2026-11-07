@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from pydantic import TypeAdapter
+from pydantic import AwareDatetime, TypeAdapter
 from sqlalchemy import Connection, ScalarResult, text
 
 from app.api.errors import ApiError
@@ -16,11 +16,41 @@ from app.contracts.models import (
     ErrorDetail,
     Evaluation,
     EvaluationCreateRequest,
+    FrozenModel,
     ProviderCall,
 )
 from app.domain.snapshots import checklist_content_hash
 from app.evaluation.demo import load_synthetic_input
 from app.storage.database import get_engine, write_transaction
+
+
+class DispatchAttempt(FrozenModel):
+    """The transport began sending to this model. Receipt, usage and outcome may be unknown."""
+
+    provider: str
+    model: str
+    attempt: int
+    started_at: AwareDatetime
+
+
+def dispatches_snapshot(db: Connection, evaluation_id: str) -> tuple[DispatchAttempt, ...]:
+    # Old databases have only completed ProviderCall rows until upgraded by startup.
+    exists = db.exec_driver_sql(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='evaluation_dispatches'"
+    ).scalar()
+    if not exists:
+        return ()
+    rows = db.execute(
+        text("""SELECT provider, model, attempt, started_at
+        FROM evaluation_dispatches WHERE evaluation_id=:id ORDER BY attempt"""),
+        {"id": evaluation_id},
+    )
+    return tuple(DispatchAttempt.model_validate(row._mapping) for row in rows)
+
+
+def get_dispatches(evaluation_id: str) -> tuple[DispatchAttempt, ...]:
+    with get_engine().connect() as db:
+        return dispatches_snapshot(db, evaluation_id)
 
 
 def error(status: int, code: str, message: str) -> ApiError:
@@ -46,6 +76,10 @@ def initialize_workflow() -> None:
             request TEXT NOT NULL, response TEXT NOT NULL)""")
         db.exec_driver_sql("""CREATE TABLE IF NOT EXISTS live_limits (
             plan_id TEXT PRIMARY KEY, cases INTEGER NOT NULL, attempts INTEGER NOT NULL)""")
+        db.exec_driver_sql("""CREATE TABLE IF NOT EXISTS evaluation_dispatches (
+            evaluation_id TEXT NOT NULL REFERENCES evaluations(id), attempt INTEGER NOT NULL,
+            provider TEXT NOT NULL, model TEXT NOT NULL, started_at TEXT NOT NULL, completed_call TEXT,
+            PRIMARY KEY(evaluation_id, attempt))""")
         existing = db.execute(
             text("SELECT snapshot FROM checklist_versions WHERE id=:id"), {"id": canonical.id}
         ).scalar_one_or_none()
@@ -166,14 +200,34 @@ def update_evaluation(db: Connection, evaluation: Evaluation) -> None:
     )
 
 
+def calls_snapshot(db: Connection, evaluation_id: str, stored: str) -> tuple[ProviderCall, ...]:
+    stored_calls = TypeAdapter(tuple[ProviderCall, ...]).validate_json(stored)
+    calls = {(c.provider, c.model, c.purpose, c.attempt): c for c in stored_calls}
+    # On a legacy DB all measured calls live in evaluations.calls.
+    exists = db.exec_driver_sql(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='evaluation_dispatches'"
+    ).scalar()
+    if exists:
+        details: ScalarResult[str] = db.execute(
+            text("""SELECT completed_call FROM evaluation_dispatches
+            WHERE evaluation_id=:id AND completed_call IS NOT NULL ORDER BY attempt"""),
+            {"id": evaluation_id},
+        ).scalars()
+        for detail in details:
+            call = ProviderCall.model_validate_json(detail)
+            calls[(call.provider, call.model, call.purpose, call.attempt)] = call
+    return tuple(calls.values())
+
+
 def get_calls(evaluation_id: str) -> tuple[ProviderCall, ...]:
     with get_engine().connect() as db:
+        db.exec_driver_sql("BEGIN")
         row = db.execute(
             text("SELECT calls FROM evaluations WHERE id=:id"), {"id": evaluation_id}
         ).scalar_one_or_none()
         if row is None:
             raise error(404, "NOT_FOUND", "Оценка не найдена.")
-        return TypeAdapter(tuple[ProviderCall, ...]).validate_json(row)
+        return calls_snapshot(db, evaluation_id, row)
 
 
 def get_plan_id(evaluation_id: str) -> str | None:

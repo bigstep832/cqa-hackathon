@@ -31,6 +31,7 @@ from app.contracts.models import (
 from app.domain.scoring import score
 from app.domain.snapshots import checklist_content_hash, conversation_content_hash
 from app.evaluation.validation import validate_output
+from app.storage.workflow import DispatchAttempt
 
 ROOT = Path(__file__).resolve().parents[3]
 TEAM_NAME = "DT20"
@@ -72,6 +73,7 @@ class SelectedJob:
     request: EvaluationCreateRequest
     calls: tuple[ProviderCall, ...]
     plan_id: str | None = None
+    dispatches: tuple[DispatchAttempt, ...] = ()
 
 
 def _public_text(value: str) -> str:
@@ -173,7 +175,7 @@ def _result(
 def build_submission(
     selection: ReleaseSelection, conversations: Sequence[ConversationVersion],
     checklist: ChecklistVersion, jobs: dict[str, SelectedJob], *,
-    cutoff: dict[str, tuple[ProviderCall, ...]] | None = None, rehearsal: bool = False,
+    cutoff: dict[str, tuple[ProviderCall | DispatchAttempt, ...]] | None = None, rehearsal: bool = False,
 ) -> dict[str, Any]:
     if not rehearsal and selection.team_name != TEAM_NAME:
         raise SubmissionError(f"The official team name must be exactly {TEAM_NAME}.")
@@ -210,11 +212,13 @@ def build_submission(
         if job.evaluation.id != job_id:
             raise SubmissionError("Selected job ID does not match the stored job.")
         pending_at_cutoff = cutoff is not None and job_id in cutoff
-        calls = cutoff[job_id] if cutoff is not None and pending_at_cutoff else job.calls
+        calls: tuple[ProviderCall | DispatchAttempt, ...] = (
+            cutoff[job_id] if cutoff is not None and pending_at_cutoff else (*job.calls, *job.dispatches)
+        )
         for call in calls:
             if call.provider not in {"openai", "gemini", "local"}:
                 raise SubmissionError("Unknown provider in execution history.")
-            if call.purpose == "evaluate" and (call.provider, call.model) != (
+            if (isinstance(call, DispatchAttempt) or call.purpose == "evaluate") and (call.provider, call.model) != (
                 job.request.provider, job.request.model
             ):
                 raise SubmissionError("The recorded evaluation call differs from the requested model.")

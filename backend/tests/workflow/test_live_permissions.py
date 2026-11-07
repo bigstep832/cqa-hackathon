@@ -27,7 +27,13 @@ from app.evaluation.factory import create_provider
 from app.services import jobs, live_workflow
 from app.storage.conversations import import_conversations
 from app.storage.database import get_engine, write_transaction
-from app.storage.workflow import get_calls, get_evaluation, get_plan_id, initialize_workflow
+from app.storage.workflow import (
+    get_calls,
+    get_dispatches,
+    get_evaluation,
+    get_plan_id,
+    initialize_workflow,
+)
 
 
 @pytest.fixture
@@ -83,7 +89,7 @@ def test_reserve_before_call_and_do_not_refund_after_failures(database, tmp_path
     monkeypatch.setenv("MODEL_API_KEY", "fixture-cloud-credential")
     transported = []
 
-    def factory(config, *, on_attempt):
+    def factory(config, *, client, on_attempt, on_call):
         assert config.api_key is None
 
         class FailedTransport:
@@ -103,7 +109,7 @@ def test_reserve_before_call_and_do_not_refund_after_failures(database, tmp_path
     assert all(item.status == "failed" and item.output is None for item in evaluations)
     assert len(transported) == 1 and transported[0].settings.provider == "local"
     assert all("private transport message" not in item.model_dump_json() for item in evaluations)
-    assert all(get_calls(item.id) == () for item in evaluations)
+    assert all(get_calls(item.id) == () and get_dispatches(item.id) == () for item in evaluations)
     with get_engine().connect() as db:
         assert tuple(db.execute(text("SELECT cases,attempts FROM live_limits")).one()) == (2, 1)
 
@@ -116,7 +122,7 @@ def test_transport_timeouts_keep_real_attempt_history(database, tmp_path, monkey
     monkeypatch.setattr(
         jobs,
         "resolve_settings",
-        lambda *args: resolve(*args).model_copy(update={"timeout_seconds": 4}),
+        lambda *args: resolve(*args).model_copy(update={"timeout_seconds": 1}),
     )
     requests = []
 
@@ -126,17 +132,13 @@ def test_transport_timeouts_keep_real_attempt_history(database, tmp_path, monkey
         pytest.fail("The adapter should have timed out")
 
     async def run():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(expire)) as client:
-            monkeypatch.setattr(
-                live_workflow,
-                "create_provider",
-                lambda cfg, *, on_attempt: create_provider(
-                    cfg, client=client, on_attempt=on_attempt
-                ),
-            )
-            item = jobs.create_evaluation(request("live"))
-            await jobs.run_claimed(*jobs.claim_job())
-            return get_evaluation(item.id), get_calls(item.id)
+        monkeypatch.setattr(
+            live_workflow, "outbound_transport", lambda: httpx.MockTransport(expire)
+        )
+        item = jobs.create_evaluation(request("live"))
+        await jobs.run_claimed(*jobs.claim_job())
+        assert [v.attempt for v in get_dispatches(item.id)] == [1, 2]
+        return get_evaluation(item.id), get_calls(item.id)
 
     result, calls = asyncio.run(run())
     assert result.status == "failed" and result.failure.code == "PROVIDER_TIMEOUT"
@@ -157,10 +159,19 @@ def test_postprocessing_failure_preserves_reported_usage(database, tmp_path, mon
         output_tokens=4,
     )
 
-    def factory(config, *, on_attempt):
+    monkeypatch.setattr(
+        live_workflow,
+        "outbound_transport",
+        lambda: httpx.MockTransport(lambda _: httpx.Response(200)),
+    )
+
+    def factory(config, *, client, on_attempt, on_call):
         class IncompleteOutput:
             async def evaluate(self, case):
                 on_attempt()
+                async with client.stream("POST", "http://127.0.0.1:1/v1/chat/completions"):
+                    pass
+                on_call(reported)
                 return EvaluationOutput(
                     answers=load_synthetic_answers()[:1],
                     metadata=EvaluationMetadata(
@@ -309,7 +320,7 @@ def test_replacement_between_reservation_and_transport_blocks_attempt(
     queued = jobs.create_evaluation(req)
     transported = []
 
-    def factory(config, *, on_attempt):
+    def factory(config, *, client, on_attempt, on_call):
         class Transport:
             async def evaluate(self, case):
                 import_origin("organizer", "Версия заменилась перед отправкой")
@@ -365,16 +376,17 @@ def test_checklist_edits_reach_worker_and_preserve_prior_evaluation(
             200, json={"choices": [{"finish_reason": "stop", "message": message}]}
         )
 
-    def capture_provider(config, *, on_attempt):
+    monkeypatch.setattr(
+        live_workflow, "outbound_transport", lambda: httpx.MockTransport(synthetic_completion)
+    )
+
+    def capture_provider(config, *, client, on_attempt, on_call):
         class ObservedAdapter:
             async def evaluate(self, case):
                 captured.append(case)
-                async with httpx.AsyncClient(
-                    transport=httpx.MockTransport(synthetic_completion)
-                ) as client:
-                    return await create_provider(
-                        config, client=client, on_attempt=on_attempt
-                    ).evaluate(case)
+                return await create_provider(
+                    config, client=client, on_attempt=on_attempt, on_call=on_call
+                ).evaluate(case)
 
         return ObservedAdapter()
 

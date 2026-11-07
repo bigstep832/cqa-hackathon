@@ -39,13 +39,14 @@ from app.services.submission import (  # noqa: E402
     validate_file,
     write_verified,
 )
+from app.storage.workflow import DispatchAttempt  # noqa: E402
 
 
 def release_cutoff(
     db: Connection, selection: ReleaseSelection, jobs: dict[str, SelectedJob], *,
     capture: bool, require: bool,
-) -> dict[str, tuple[ProviderCall, ...]] | None:
-    codec = TypeAdapter(dict[str, tuple[ProviderCall, ...]])
+) -> dict[str, tuple[ProviderCall | DispatchAttempt, ...]] | None:
+    codec = TypeAdapter(dict[str, tuple[ProviderCall | DispatchAttempt, ...]])
     fingerprint = stable_hash(selection.model_dump(mode="json"))
     if capture:
         db.exec_driver_sql("""CREATE TABLE IF NOT EXISTS submission_cutoffs (
@@ -64,7 +65,7 @@ def release_cutoff(
         return None
     # Caller holds BEGIN IMMEDIATE across job reads and validation. A worker cannot
     # move a job or publish later calls partway through capturing this cutoff.
-    pending = {key: item.calls for key, item in jobs.items()
+    pending = {key: (*item.calls, *item.dispatches) for key, item in jobs.items()
                if item.evaluation.status in {"queued", "running"}}
     db.execute(text("""INSERT INTO submission_cutoffs(selection_hash,recorded_at,pending_calls)
                     VALUES(:hash,:at,:calls)"""),
@@ -97,7 +98,7 @@ def release(action: str, selection_file: Path, final: bool) -> None:
 def release_selection(action: str, selection: ReleaseSelection, final: bool) -> None:
     from app.storage.conversations import group_versions_snapshot, initialize_conversations
     from app.storage.database import get_engine, write_transaction
-    from app.storage.workflow import checklist_snapshot
+    from app.storage.workflow import calls_snapshot, checklist_snapshot, dispatches_snapshot
 
     initialize_conversations()
     capture = action == "export" and final
@@ -107,7 +108,6 @@ def release_selection(action: str, selection: ReleaseSelection, final: bool) -> 
         manifest = group_versions_snapshot(db, selection.group_id)
         checklist = checklist_snapshot(db, OFFICIAL_ID)
         jobs = {}
-        calls_codec = TypeAdapter(tuple[ProviderCall, ...])
         for job_id in selection.jobs.values():
             if job_id is None:
                 continue
@@ -117,7 +117,8 @@ def release_selection(action: str, selection: ReleaseSelection, final: bool) -> 
                 raise SubmissionError("A selected job does not exist.")
             jobs[job_id] = SelectedJob(Evaluation.model_validate_json(row.snapshot),
                                        EvaluationCreateRequest.model_validate_json(row.request),
-                                       calls_codec.validate_json(row.calls), row.plan_id)
+                                       calls_snapshot(db, job_id, row.calls), row.plan_id,
+                                       dispatches_snapshot(db, job_id))
         cutoff = release_cutoff(db, selection, jobs, capture=capture, require=final)
         document = build_submission(selection, manifest, checklist, jobs, cutoff=cutoff)
     path = ROOT / "results" / selection.dataset / "results.json"
