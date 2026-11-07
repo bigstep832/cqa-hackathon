@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type Evaluation } from './api/client';
 import { loadEvaluationResult, validateEvaluation, type EvaluationAttempt, type EvaluationResult } from './api/evaluation';
 import { ApiFailure } from './ApiFailure';
-import { ReviewWorkspace } from './ReviewWorkspace';
+import { AppealWorkspace } from './AppealWorkspace';
 
 const labels: Record<Evaluation['status'], string> = {
   queued: 'В очереди', running: 'Оценка выполняется', succeeded: 'Оценка завершена', failed: 'Оценка не выполнена',
@@ -54,7 +54,7 @@ export function EvaluationMonitor({ attempt, initial, onNew }: {
       {evaluation.failure?.code && <p>Код: {evaluation.failure.code}</p>}
     </div>}
     {evaluation?.status === 'succeeded' && !result && !error && <p role="status">Загружаем сохранённые версии результата…</p>}
-    {result && <ReviewWorkspace key={result.evaluation.id} data={result} />}
+    {result && <AppealWorkspace key={result.evaluation.id} initial={result} />}
     {(evaluation?.status === 'failed' || result) && <button className="secondary-button" onClick={onNew}>Новая оценка</button>}
   </section>;
 }

@@ -4,6 +4,8 @@ import { ReviewWorkspace } from './ReviewWorkspace';
 import { ConversationsScreen } from './ConversationsScreen';
 import { EvaluationWorkspace } from './EvaluationWorkspace';
 import { ChecklistsScreen } from './checklists/ChecklistsScreen';
+import { AppealsScreen } from './AppealsScreen';
+import { appealRoute } from './api/appeals';
 
 type LoadState =
   | { status: 'loading' }
@@ -19,7 +21,17 @@ function Mark({ small = false }: { small?: boolean }) {
 }
 
 export function App() {
-  const [view, setView] = useState<'conversations' | 'checklists' | 'demo'>('conversations');
+  const [view, selectView] = useState<'conversations' | 'checklists' | 'demo' | 'appeals'>(() => appealRoute() !== null ? 'appeals' : 'conversations');
+  const [appealId, setAppealId] = useState(() => appealRoute() ?? '');
+  function setView(next: typeof view) {
+    selectView(next); setAppealId('');
+    history.replaceState(null, '', next === 'appeals' ? '#appeals' : `${location.pathname}${location.search}`);
+  }
+  useEffect(() => {
+    const change = () => { const id = appealRoute(); if (id !== null) { setAppealId(id); selectView('appeals'); } };
+    window.addEventListener('hashchange', change);
+    return () => window.removeEventListener('hashchange', change);
+  }, []);
   return <div className="app-shell">
     <a className="skip-link" href="#main">Перейти к содержимому</a>
     <aside className="sidebar" aria-label="Разделы CQA">
@@ -28,14 +40,15 @@ export function App() {
         <span className="sidebar-label">Рабочее пространство</span>
         <button className={`nav-link${view === 'conversations' ? ' nav-link--active' : ''}`} aria-pressed={view === 'conversations'} onClick={() => setView('conversations')}>Диалоги</button>
         <button className={`nav-link${view === 'checklists' ? ' nav-link--active' : ''}`} aria-pressed={view === 'checklists'} onClick={() => setView('checklists')}>Чек-листы</button>
+        <button className={`nav-link${view === 'appeals' ? ' nav-link--active' : ''}`} aria-pressed={view === 'appeals'} onClick={() => setView('appeals')}>Апелляции</button>
         <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}>Демо · mock</button>
       </nav>
       <div className="sidebar-bottom"><p>DT20 · CQA</p><span className="muted">Диалоги и версии из серверного хранилища.</span></div>
     </aside>
     <main id="main" className="main" tabIndex={-1}>
-      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : view === 'checklists' ? 'Чек-листы' : 'Диалоги'}</p>
-        <h1>{view === 'demo' ? 'Проверка диалога' : view === 'checklists' ? 'Чек-листы' : 'Диалоги'}</h1></div></header>
-      {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : <ConversationsScreen />}
+      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : view === 'checklists' ? 'Чек-листы' : view === 'appeals' ? 'Апелляции' : 'Диалоги'}</p>
+        <h1>{view === 'demo' ? 'Проверка диалога' : view === 'checklists' ? 'Чек-листы' : view === 'appeals' ? 'Апелляции' : 'Диалоги'}</h1></div></header>
+      {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : view === 'appeals' ? <AppealsScreen key={appealId} evaluationId={appealId} /> : <ConversationsScreen />}
       <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
     </main>
   </div>;

@@ -11,6 +11,12 @@ export type ChecklistCreateRequest = components['schemas']['ChecklistCreateReque
 export type ChecklistVersionCreateRequest = components['schemas']['ChecklistVersionCreateRequest'];
 export type Evaluation = components['schemas']['Evaluation'];
 export type EvaluationRequest = components['schemas']['EvaluationCreateRequest'];
+export type Appeal = components['schemas']['Appeal'];
+export type AppealList = components['schemas']['AppealList'];
+export type AppealRequest = components['schemas']['AppealCreateRequest'];
+export type DecisionRequest = components['schemas']['DecisionCreateRequest'];
+export type DecisionResponse = components['schemas']['DecisionResponse'];
+export type Answer = components['schemas']['CriterionAnswer']['answer'];
 type ErrorField = components['schemas']['ErrorField'];
 export type Transport = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -93,6 +99,19 @@ export function createApiClient(transport: Transport = (url, init) => fetch(url,
     },
     getEvaluation(id: string, signal?: AbortSignal) {
       return request<Evaluation>(`/api/v1/evaluations/${encodeURIComponent(id)}`, { signal });
+    },
+    listAppeals(evaluationId: string, signal?: AbortSignal) {
+      return request<AppealList>(`/api/v1/evaluations/${encodeURIComponent(evaluationId)}/appeals`, { signal });
+    },
+    createAppeal(evaluationId: string, body: AppealRequest, signal?: AbortSignal) {
+      return request<Appeal>(`/api/v1/evaluations/${encodeURIComponent(evaluationId)}/appeals`, {
+        method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+    },
+    decideAppeal(appealId: string, body: DecisionRequest, signal?: AbortSignal) {
+      return request<DecisionResponse>(`/api/v1/appeals/${encodeURIComponent(appealId)}/decision`, {
+        method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
     },
     // Raw JSON is preserved so backend validation can detect duplicate properties.
     importConversations(body: ImportRequest | string, signal?: AbortSignal) {

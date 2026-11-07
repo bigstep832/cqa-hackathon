@@ -6,6 +6,7 @@ import type { Evaluation, EvaluationRequest } from '../../src/api/client';
 async function mockApi(page: Page, override?: (route: Route, path: string) => Promise<boolean>) {
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/appeals')) { await route.fulfill({ json: { items: [] } }); return; }
     if (await override?.(route, path)) return;
     const data: unknown = path === '/api/v1/conversations' ? conversationList
       : path === '/api/v1/checklists' ? checklistList

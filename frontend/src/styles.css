@@ -1,5 +1,19 @@
 @import url('./tokens.css');
 
+.appeals-toolbar, .appeal-lookup { padding: 20px; margin: 18px 0; display: grid; gap: 10px; overflow-wrap: anywhere; }
+.appeals-toolbar > button, .appeal-lookup > button { justify-self: start; }
+.appeal-lookup input { min-width: 0; width: 100%; border: 1px solid var(--line); border-radius: 5px; padding: 10px; background: var(--surface); color: var(--ink); }
+.criterion-appeal { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 14px; font-size: 12px; overflow-wrap: anywhere; }
+.criterion-appeal p + p { margin-top: 7px; }
+.criterion-appeal > button { margin-top: 10px; }
+.appeal-form { margin-top: 12px; display: grid; gap: 8px; }
+.appeal-form textarea, .appeal-form select { width: 100%; min-width: 0; }
+.appeal-form textarea { resize: vertical; }
+.appeal-form label { font-weight: 600; }
+.appeal-form button { justify-self: start; }
+.appeal-form .request-error { padding: 8px 0; }
+.review-decision { background: var(--green-soft); padding: 12px; border-radius: 5px; margin-top: 10px; }
+
 .checklist-toolbar, .editor-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
 .checklist-toolbar .primary-button, .editor-actions .primary-button { margin-top: 0; }
 .checklist-grid { display: grid; grid-template-columns: minmax(240px, .65fr) minmax(0, 1.35fr); gap: 22px; align-items: start; }

@@ -14,6 +14,7 @@ function deferred<T>() {
 }
 function install(overrides?: (url: string, init?: RequestInit) => Promise<Response> | Response | undefined) {
   const transport = vi.fn<Transport>().mockImplementation(async (url, init) => {
+    if (url.endsWith('/appeals')) return response({ items: [] });
     const override = overrides?.(url, init);
     if (override) return override;
     if (url === '/api/v1/checklists') return response(checklistList);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { components } from './api/generated/schema';
 import type { EvaluationResult } from './api/evaluation';
 import { formatDecimal } from './format';
@@ -8,7 +8,7 @@ const speakerLabels: Record<string, string> = {
   client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система',
 };
 
-export function ReviewWorkspace({ data }: { data: EvaluationResult }) {
+export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult; renderAppeal?: (criterionId: string) => ReactNode }) {
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
   const [selectedCriterion, setSelectedCriterion] = useState<string | null>(null);
   const { conversation, checklist, evaluation } = data;
@@ -100,6 +100,7 @@ export function ReviewWorkspace({ data }: { data: EvaluationResult }) {
               <p className="explanation">{result.explanation}</p>
               {answer.type === 'na' && <p className="na-reason"><strong>Почему N/A:</strong> {answer.reason}</p>}
               <div className="evidence-actions">{result.evidence.map((evidence, index) => <button key={`${evidence.start_message_id}-${index}`} className="evidence-button" onClick={() => revealEvidence(evidence, criterion.id)} aria-label={`Показать доказательство ${criterion.id}${result.evidence.length > 1 ? `, фрагмент ${index + 1}` : ''}`}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-4 3v-3H2V3Z" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>{evidence.start_message_id === evidence.end_message_id ? 'Показать сообщение' : 'Показать фрагмент'}</button>)}</div>
+              {renderAppeal?.(criterion.id)}
             </article>;
           })}
         </div>
