@@ -120,7 +120,8 @@ Git или чате. Реальные данные — только `data/privat
 Создан публичный репозиторий [bigstep832/cqa-hackathon](https://github.com/bigstep832/cqa-hackathon).
 Код отправлен в `main`; результаты локальных проверок — в отчёте bootstrap,
 текущий CI — во вкладке Actions. Live-бюджет 0 до согласования
-провайдера и разрешённой суммы. Хакатон начался, точный стоп-код ещё не назван. См. [DECISIONS](docs/DECISIONS.md).
+провайдера и разрешённой суммы. Команда **DT-20**, стоп-код **08.11.2026, 12:00 по Астане**
+(подтверждено пользователем). См. [DECISIONS](docs/DECISIONS.md).
 
 - [Первый task A](prompts/A_AI_LEAD.md): baseline и воспроизводимый eval.
 - [Первый task B](prompts/B_FRONTEND.md): карточка и API client.
