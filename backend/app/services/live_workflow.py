@@ -6,11 +6,18 @@ from datetime import date
 from pathlib import Path
 
 from evals.live import LivePlan, validate_cases
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 
-from app.contracts.models import EvaluationCreateRequest, EvaluationInput, EvaluationSettings
+from app.contracts.models import (
+    ConversationVersion,
+    EvaluationCreateRequest,
+    EvaluationInput,
+    EvaluationSettings,
+)
+from app.evaluation.demo import load_synthetic_input
 from app.evaluation.factory import ProviderConfig, create_provider
 from app.evaluation.provider import EvaluationProvider
+from app.storage.conversations import organizer_version_is_current
 from app.storage.database import write_transaction
 
 
@@ -32,9 +39,21 @@ def resolve_settings(request: EvaluationCreateRequest, plan: LivePlan) -> Evalua
     return EvaluationSettings(mode="live", provider=plan.provider, model=plan.model)
 
 
+def approved_snapshot(db: Connection, conversation: ConversationVersion, plan: LivePlan) -> bool:
+    if conversation.dataset_group_id not in plan.dataset_group_ids:
+        return False
+    if conversation.source == "synthetic":
+        return conversation == load_synthetic_input().conversation
+    return conversation.source == "organizer" and organizer_version_is_current(
+        db, conversation.dataset_group_id, conversation.id
+    )
+
+
 def live_provider(case: EvaluationInput, plan_id: str, plan: LivePlan) -> EvaluationProvider:
     validate_cases([case], plan)
     with write_transaction() as db:
+        if not approved_snapshot(db, case.conversation, plan):
+            raise ValueError("Snapshot outside current approved manifest")
         db.execute(
             text("INSERT OR IGNORE INTO live_limits(plan_id,cases,attempts) VALUES(:id,0,0)"),
             {"id": plan_id},
@@ -51,6 +70,10 @@ def live_provider(case: EvaluationInput, plan_id: str, plan: LivePlan) -> Evalua
         # No refund after ambiguous timeout or process failure; the validated price ceiling
         # multiplied by the persisted attempt cap is bounded by the approved total budget.
         with write_transaction() as db:
+            if configured_plan()[0] != plan_id or not approved_snapshot(
+                db, case.conversation, plan
+            ):
+                raise ValueError("Live plan or organizer manifest changed")
             reserved = db.execute(
                 text("""UPDATE live_limits SET attempts=attempts+1
                 WHERE plan_id=:id AND attempts<:max"""),

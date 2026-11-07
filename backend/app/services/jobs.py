@@ -27,7 +27,12 @@ from app.domain.scoring import score
 from app.evaluation.factory import create_provider
 from app.evaluation.provider import ProviderExecutionError
 from app.evaluation.validation import validate_output
-from app.services.live_workflow import configured_plan, live_provider, resolve_settings
+from app.services.live_workflow import (
+    approved_snapshot,
+    configured_plan,
+    live_provider,
+    resolve_settings,
+)
 from app.storage.conversations import get_version
 from app.storage.database import get_engine, write_transaction
 from app.storage.workflow import (
@@ -80,12 +85,11 @@ def create_evaluation(
     ):
         raise error(422, "MOCK_NOT_SUPPORTED", "Mock доступен только для встроенного примера.")
     plan_id = None
+    plan = None
     if request.mode == "live":
         try:
             plan_id, plan = configured_plan()
             settings = resolve_settings(request, plan)
-            if conversation.dataset_group_id not in plan.dataset_group_ids:
-                raise ValueError("Dataset not approved")
         except (ValueError, OSError):
             raise error(
                 409, "LIVE_NOT_AUTHORIZED", "Живой запуск не согласован для этой конфигурации."
@@ -104,6 +108,10 @@ def create_evaluation(
         existing = existing_request(db, idempotency_key, original)
         if existing is not None:
             return existing
+        if plan is not None and not approved_snapshot(db, conversation, plan):
+            raise error(
+                409, "LIVE_NOT_AUTHORIZED", "Эта версия диалога не входит в согласованный набор."
+            )
         db.execute(
             text("""INSERT INTO evaluations(id,status,request,snapshot,plan_id,idempotency_key,original_request)
             VALUES(:id,'queued',:request,:snapshot,:plan_id,:key,:original)"""),

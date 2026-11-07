@@ -10,9 +10,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.contracts.models import EvaluationCreateRequest
+from app.api.errors import ApiError
+from app.contracts.models import ConversationImportRequest, EvaluationCreateRequest
 from app.evaluation.demo import load_synthetic_input
 from app.services import jobs, live_workflow
+from app.storage.conversations import import_conversations
 from app.storage.database import get_engine
 from app.storage.workflow import get_calls, get_evaluation, get_plan_id, initialize_workflow
 
@@ -72,6 +74,7 @@ def test_reserve_before_call_and_do_not_refund_after_failures(database, tmp_path
 
     def factory(config, *, on_attempt):
         assert config.api_key is None
+
         class FailedTransport:
             async def evaluate(self, case):
                 on_attempt()
@@ -105,6 +108,72 @@ def test_changed_plan_cannot_run_queued_job(database, tmp_path, monkeypatch):
     assert jobs.create_evaluation(request("live"), "case").id == queued.id
     with get_engine().connect() as db:
         assert not db.execute(text("SELECT * FROM live_limits")).all()
+
+
+def import_origin(source, message):
+    payload = ConversationImportRequest.model_validate(
+        {
+            "dataset_group_id": "SYNTHETIC",
+            "records": [
+                {
+                    "conversation_id": "organizer-fixture",
+                    "channel": "agent chat",
+                    "language": "RU",
+                    "transcript": [{"timestamp": "00:01", "speaker": "operator", "text": message}],
+                }
+            ],
+        }
+    )
+    return import_conversations(payload, source=source).conversation_version_ids[0]
+
+
+def test_manual_spoof_and_superseded_manifest_cannot_reach_model(database, tmp_path, monkeypatch):
+    install_plan(tmp_path, monkeypatch)
+    manual = import_origin("manual", "Текст вне разрешённой передачи")
+    with pytest.raises(ApiError) as denied:
+        jobs.create_evaluation(
+            request("live").model_copy(update={"conversation_version_id": manual})
+        )
+    assert denied.value.error.code == "LIVE_NOT_AUTHORIZED"
+    original = import_origin("organizer", "Начальная версия")
+    req = request("live").model_copy(update={"conversation_version_id": original})
+    queued = jobs.create_evaluation(req)
+    current = import_origin("organizer", "Актуальная версия")
+    assert current != original
+    with pytest.raises(ApiError) as denied:
+        jobs.create_evaluation(req)
+    assert denied.value.error.code == "LIVE_NOT_AUTHORIZED"
+    attempts = []
+    monkeypatch.setattr(live_workflow, "create_provider", lambda *a, **kw: attempts.append(1))
+    asyncio.run(jobs.run_claimed(*jobs.claim_job()))
+    assert get_evaluation(queued.id).status == "failed" and not attempts
+    with get_engine().connect() as db:
+        assert not db.execute(text("SELECT * FROM live_limits")).all()
+
+
+def test_replacement_between_reservation_and_transport_blocks_attempt(
+    database, tmp_path, monkeypatch
+):
+    install_plan(tmp_path, monkeypatch)
+    current = import_origin("organizer", "Исходный текст")
+    req = request("live").model_copy(update={"conversation_version_id": current})
+    queued = jobs.create_evaluation(req)
+    transported = []
+
+    def factory(config, *, on_attempt):
+        class Transport:
+            async def evaluate(self, case):
+                import_origin("organizer", "Версия заменилась перед отправкой")
+                on_attempt()
+                transported.append(case)
+
+        return Transport()
+
+    monkeypatch.setattr(live_workflow, "create_provider", factory)
+    asyncio.run(jobs.run_claimed(*jobs.claim_job()))
+    assert get_evaluation(queued.id).status == "failed" and not transported
+    with get_engine().connect() as db:
+        assert tuple(db.execute(text("SELECT cases,attempts FROM live_limits")).one()) == (1, 0)
 
 
 def test_lifespan_recovers_then_executes_queue(database):
