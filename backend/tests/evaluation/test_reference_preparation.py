@@ -121,6 +121,38 @@ def test_duplicate_inputs_and_exact_content_leakage_are_rejected() -> None:
                        seed=1, holdout_groups=1)
 
 
+def test_changed_versions_of_one_logical_dialogue_cannot_leak_across_splits() -> None:
+    cases = [sample_case("old-version"), sample_case("new-version"), sample_case("independent")]
+    for index in (0, 1):
+        raw = cases[index].model_dump(mode="json")
+        raw["conversation"]["conversation_id"] = "one-logical-dialogue"
+        cases[index] = EvaluationInput.model_validate(raw)
+    assignments = [ScenarioAssignment(conversation_version_id=case.conversation.id,
+                                      scenario_group=f"scenario-{index}")
+                   for index, case in enumerate(cases)]
+    with pytest.raises(ValueError, match="logical conversation"):
+        prepare_drafts(cases, assignments, seed=17, holdout_groups=1)
+    assignments[1] = ScenarioAssignment(conversation_version_id=cases[1].conversation.id,
+                                        scenario_group=assignments[0].scenario_group)
+    document = prepare_drafts(cases, assignments, seed=17, holdout_groups=1)
+    versions = [record for record in document.records
+                if record.evaluation_input.conversation.conversation_id == "one-logical-dialogue"]
+    assert len(versions) == 2 and len({record.split for record in versions}) == 1
+
+
+def test_logical_identity_includes_dataset_scope() -> None:
+    cases = [sample_case("a"), sample_case("b")]
+    for index, case in enumerate(cases):
+        raw = case.model_dump(mode="json")
+        raw["conversation"].update(conversation_id="reused-external-id", dataset_group_id=f"dataset-{index}")
+        cases[index] = EvaluationInput.model_validate(raw)
+    assignments = [ScenarioAssignment(conversation_version_id=case.conversation.id,
+                                      scenario_group=f"scenario-{index}")
+                   for index, case in enumerate(cases)]
+    document = prepare_drafts(cases, assignments, seed=17, holdout_groups=1)
+    assert {record.split for record in document.records} == {"tune", "holdout"}
+
+
 @pytest.mark.parametrize("mutation", ["snapshot", "criteria", "split", "origin"])
 def test_edited_draft_cannot_silently_change_fixed_inputs(mutation: str) -> None:
     raw = prepare_sample().model_dump(mode="json")

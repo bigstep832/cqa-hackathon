@@ -102,6 +102,7 @@ class DraftDocument(FrozenModel):
     def validate_partition(self) -> DraftDocument:
         pairs: set[tuple[str, str]] = set()
         conversation_groups: dict[str, str] = {}
+        logical_conversation_groups: dict[tuple[str, str, str], str] = {}
         content_groups: dict[str, str] = {}
         version_contents: dict[tuple[str, str], str] = {}
         assignment = split_groups(
@@ -118,6 +119,9 @@ class DraftDocument(FrozenModel):
             old_group = conversation_groups.setdefault(conversation.id, record.scenario_group)
             if old_group != record.scenario_group:
                 raise ValueError("One conversation version cannot have several scenario groups")
+            logical_key = (conversation.source, conversation.dataset_group_id, conversation.conversation_id)
+            if logical_conversation_groups.setdefault(logical_key, record.scenario_group) != record.scenario_group:
+                raise ValueError("Versions of one logical conversation must remain in the same scenario group")
             duplicate_group = content_groups.setdefault(conversation.content_hash, record.scenario_group)
             if duplicate_group != record.scenario_group:
                 raise ValueError("Exact duplicate contents must remain in the same scenario group")
