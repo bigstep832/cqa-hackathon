@@ -32,6 +32,55 @@ async function configureLive(page: Page) {
   await page.getByLabel('Режим оценки', { exact: true }).selectOption('live');
 }
 
+test('404 сохранённой оценки: сброс только одной попытки и новый запуск только по нажатию', async ({ page }) => {
+  const stale = { body: liveRequest, key: 'stale-key', evaluationId: 'deleted-evaluation' };
+  await page.addInitScript(({ conversationId, attempt }) => {
+    sessionStorage.setItem(`cqa:evaluation:${conversationId}`, JSON.stringify(attempt));
+    sessionStorage.setItem('cqa:evaluation:other-version', 'untouched');
+    sessionStorage.setItem('cqa:decision:other-appeal', 'untouched');
+  }, { conversationId: historicalConversation.id, attempt: stale });
+  const keys: string[] = [];
+  await mockApi(page, async (route, path) => {
+    if (path === '/api/v1/evaluations/deleted-evaluation') { await route.fulfill({ status: 404, json: {} }); return true; }
+    if (path === '/api/v1/evaluations') keys.push(route.request().headers()['idempotency-key']!);
+    return false;
+  });
+  await openForm(page);
+  await expect(page.getByRole('alert')).toContainText('Сохранённая оценка больше недоступна');
+  expect(keys).toHaveLength(0);
+  await page.getByRole('button', { name: 'Начать новую оценку' }).click();
+  await expect(page.getByRole('button', { name: 'Запустить оценку' })).toBeDisabled();
+  expect(await page.evaluate(id => sessionStorage.getItem(`cqa:evaluation:${id}`), historicalConversation.id)).toBeNull();
+  expect(await page.evaluate(() => sessionStorage.getItem('cqa:evaluation:other-version'))).toBe('untouched');
+  expect(await page.evaluate(() => sessionStorage.getItem('cqa:decision:other-appeal'))).toBe('untouched');
+  expect(keys).toHaveLength(0);
+  await configureLive(page); await page.getByRole('button', { name: 'Запустить оценку' }).click();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  expect(keys).toHaveLength(1); expect(keys[0]).not.toBe('stale-key');
+});
+
+for (const failure of ['network', '500'] as const) test(`${failure}: повтор GET сохраняет оценку и ключ`, async ({ page }) => {
+  const attempt = { body: liveRequest, key: 'retained-key', evaluationId: evaluation().id };
+  await page.addInitScript(({ conversationId, saved }) => sessionStorage.setItem(`cqa:evaluation:${conversationId}`, JSON.stringify(saved)),
+    { conversationId: historicalConversation.id, saved: attempt });
+  let unavailable = true, posts = 0;
+  await mockApi(page, async (route, path) => {
+    if (path === '/api/v1/evaluations') posts++;
+    if (path === `/api/v1/evaluations/${attempt.evaluationId}` && unavailable) {
+      if (failure === 'network') await route.abort('failed'); else await route.fulfill({ status: 500, json: {} });
+      return true;
+    }
+    return false;
+  });
+  await openForm(page);
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Начать новую оценку' })).toHaveCount(0);
+  unavailable = false; await page.getByRole('button', { name: 'Повторить загрузку' }).click();
+  await expect(page.getByTestId('total-score')).toBeVisible();
+  expect(await page.evaluate(id => JSON.parse(sessionStorage.getItem(`cqa:evaluation:${id}`)!), historicalConversation.id)).toEqual(attempt);
+  expect(posts).toBe(0);
+});
+
 test('queued → running → succeeded, исходный snapshot и отдельные баллы', async ({ page }) => {
   let status: Evaluation['status'] = 'queued';
   let created = false;

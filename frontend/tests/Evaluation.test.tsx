@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EvaluationWorkspace } from '../src/EvaluationWorkspace';
 import { createApiClient, type EvaluationRequest, type Transport } from '../src/api/client';
-import { rememberAttempt } from '../src/api/evaluation';
+import { rememberAttempt, restoreAttempt } from '../src/api/evaluation';
 import { checklistList, demo, evaluation, historicalChecklist, historicalConversation, liveRequest } from './evaluationFixtures';
 
 const response = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -40,6 +40,46 @@ const postCalls = (transport: ReturnType<typeof install>) => transport.mock.call
 beforeEach(() => sessionStorage.clear());
 
 describe('Запуск и результат оценки', () => {
+  it('404 оценки предлагает очистить только устаревшую попытку без автоматического POST', async () => {
+    const stale = { body: liveRequest, key: 'stale-key', evaluationId: 'missing-evaluation' };
+    const other = { body: { ...liveRequest, conversation_version_id: 'other-version' }, key: 'other-key', evaluationId: 'other-evaluation' };
+    rememberAttempt(historicalConversation.id, stale); rememberAttempt('other-version', other);
+    sessionStorage.setItem('cqa:decision:unrelated', 'keep-me');
+    const transport = install(url => url === '/api/v1/evaluations/missing-evaluation' ? response({}, 404) : undefined);
+    render(<EvaluationWorkspace conversationVersionId={historicalConversation.id} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Сохранённая оценка больше недоступна');
+    expect(restoreAttempt(historicalConversation.id)).toEqual(stale);
+    expect(postCalls(transport)).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Начать новую оценку' }));
+    expect(restoreAttempt(historicalConversation.id)).toBeNull();
+    expect(restoreAttempt('other-version')).toEqual(other);
+    expect(sessionStorage.getItem('cqa:decision:unrelated')).toBe('keep-me');
+    expect(screen.getByRole('button', { name: 'Запустить оценку' })).toBeDisabled();
+    expect(postCalls(transport)).toHaveLength(0);
+    await configureLive();
+    await userEvent.click(screen.getByRole('button', { name: 'Запустить оценку' }));
+    await screen.findByTestId('total-score');
+    expect(postCalls(transport)).toHaveLength(1);
+    expect((postCalls(transport)[0]![1]!.headers as Record<string, string>)['Idempotency-Key']).not.toBe('stale-key');
+  });
+
+  it.each(['network', '500'])('%s при чтении сохранённой оценки сохраняет ID и ключ для безопасного повтора', async failure => {
+    const attempt = { body: liveRequest, key: 'keep-key', evaluationId: evaluation().id };
+    rememberAttempt(historicalConversation.id, attempt);
+    let unavailable = true;
+    const transport = install(url => url === `/api/v1/evaluations/${evaluation().id}` && unavailable
+      ? failure === 'network' ? Promise.reject(new TypeError('offline')) : response({}, 500) : undefined);
+    render(<EvaluationWorkspace conversationVersionId={historicalConversation.id} />);
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: 'Начать новую оценку' })).not.toBeInTheDocument();
+    expect(restoreAttempt(historicalConversation.id)).toEqual(attempt);
+    unavailable = false;
+    await userEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
+    await screen.findByTestId('total-score');
+    expect(restoreAttempt(historicalConversation.id)).toEqual(attempt);
+    expect(postCalls(transport)).toHaveLength(0);
+    expect(transport.mock.calls.filter(call => call[0] === `/api/v1/evaluations/${evaluation().id}`)).toHaveLength(2);
+  });
   it('повторяет ошибку загрузки чек-листов и показывает пустой список без запуска', async () => {
     let reads = 0;
     const transport = install(url => url === '/api/v1/checklists' ? (++reads === 1 ? response({}, 503) : response({ items: [] })) : undefined);
@@ -207,6 +247,8 @@ describe('Запуск и результат оценки', () => {
     await configureLive();
     await userEvent.click(screen.getByRole('button', { name: 'Запустить оценку' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 404');
+    expect(screen.queryByRole('button', { name: 'Начать новую оценку' })).not.toBeInTheDocument();
+    expect(restoreAttempt(historicalConversation.id)?.evaluationId).toBe(evaluation().id);
     await userEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
     await screen.findByTestId('total-score');
     expect(postCalls(transport)).toHaveLength(1);

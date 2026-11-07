@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, type ChecklistList, type ChecklistVersion } from '../api/client';
 import { ApiFailure } from '../ApiFailure';
 import { ChecklistEditor } from './ChecklistEditor';
+import { formatWeight } from '../format';
 
 type Resource<T> = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: T };
 
@@ -105,7 +106,7 @@ function ChecklistDetail({ id, onLoaded, onEdit, retry }: {
         <h3>{section.title} <span className="muted">· {section.id}</span></h3>
         {state.data.criteria.filter(criterion => criterion.section_id === section.id).map(criterion => <article className="criterion-snapshot" key={criterion.id}>
           <h4>{criterion.id} · {criterion.title}</h4><p className="preserve-lines">{criterion.description}</p>
-          <p className="criterion-meta">{criterion.answer_type} · {criterion.kind}{criterion.kind === 'scored' ? ` · Вес: ${criterion.weight}` : ' · Без веса, отдельный флаг'}</p>
+          <p className="criterion-meta">{criterion.answer_type} · {criterion.kind}{criterion.kind === 'scored' ? ` · Вес: ${formatWeight(criterion.weight)}` : ' · Без веса, отдельный флаг'}</p>
           <p>{criterion.allow_na ? `N/A разрешён: ${criterion.na_condition}` : 'N/A не разрешён'}</p>
           <ul className="snapshot-options">{criterion.options.map((option, index) => <li key={index}>
             <strong>{option.label}</strong> <span className="muted">· значение: {String(option.value)} · {criterion.kind === 'scored' ? `quality: ${option.quality}` : option.flagged ? 'нарушение' : 'без нарушения'}</span>

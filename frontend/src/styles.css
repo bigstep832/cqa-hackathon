@@ -1,5 +1,12 @@
 @import url('./tokens.css');
 
+.conversation-audio { display: grid; gap: 8px; margin-bottom: 12px; font-size: 13px; overflow-wrap: anywhere; }
+.conversation-audio audio { display: block; width: 100%; min-width: 0; max-width: 100%; }
+.conversation-audio button { justify-self: start; }
+.conversation-audio [role="alert"] { color: var(--danger); }
+.conversation-audio [role="alert"] p + p { margin-top: 6px; }
+.conversation-audio [role="alert"] button { margin-top: 10px; }
+
 .appeals-toolbar, .appeal-lookup { padding: 20px; margin: 18px 0; display: grid; gap: 10px; overflow-wrap: anywhere; }
 .appeals-toolbar > button, .appeal-lookup > button { justify-self: start; }
 .appeal-lookup input { min-width: 0; width: 100%; border: 1px solid var(--line); border-radius: 5px; padding: 10px; background: var(--surface); color: var(--ink); }

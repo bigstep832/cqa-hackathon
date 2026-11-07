@@ -118,12 +118,14 @@ describe('Рабочие диалоги B-01', () => {
     expect(screen.queryByRole('button', { name: /synthetic-dialogue-1/ })).not.toBeInTheDocument();
   });
 
-  it('показывает пустой транскрипт и только существующую ссылку на запись', async () => {
+  it('показывает пустой транскрипт и загрузку записи внутри карточки', async () => {
     install(async url => url.startsWith('/api/v1/conversations?') ? response(list([first])) : response({ ...first, messages: [], audio_url: '/api/v1/conversation-versions/synthetic-version-1/audio' }));
     render(<App />);
     await userEvent.click(await screen.findByRole('button', { name: /synthetic-dialogue-1/ }));
     expect(await screen.findByText('В этой версии нет сообщений.')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Открыть запись звонка' })).toHaveAttribute('href', '/api/v1/conversation-versions/synthetic-version-1/audio');
+    expect(screen.queryByRole('link', { name: 'Открыть запись звонка' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Загрузить аудиозапись' }));
+    expect(screen.getByLabelText('Проигрыватель записи звонка')).toHaveAttribute('src', '/api/v1/conversation-versions/synthetic-version-1/audio');
   });
 
   it('загружает mock только после явного выбора demo и возвращается к списку', async () => {

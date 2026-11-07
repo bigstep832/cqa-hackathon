@@ -3,6 +3,7 @@ import { api, type ConversationList, type ConversationQuery, type ConversationVe
 import { ApiFailure } from './ApiFailure';
 import { ConversationImport } from './ConversationImport';
 import { EvaluationWorkspace } from './EvaluationWorkspace';
+import { ConversationAudio } from './ConversationAudio';
 
 type Resource<T> = { status: 'loading' } | { status: 'error'; error: unknown } | { status: 'ready'; data: T };
 const pageSize = 25;
@@ -120,7 +121,7 @@ function ConversationDetail({ id, retry, onEvaluate }: { id: string; retry: () =
         </article>)}
       </div>
       <div className="panel-bottom">
-        {state.data.audio_url ? <a className="text-link" href={state.data.audio_url} target="_blank" rel="noreferrer">Открыть запись звонка</a> : <span>Аудиозапись отсутствует</span>}
+        <ConversationAudio conversation={state.data} />
         <span className="version-label">Версия диалога: {state.data.id}</span>
       </div>
     </>}

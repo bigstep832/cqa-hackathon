@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import type { components } from './api/generated/schema';
 import type { EvaluationResult } from './api/evaluation';
-import { formatDecimal } from './format';
+import { formatDecimal, formatWeight } from './format';
+import { ConversationAudio } from './ConversationAudio';
 
 type Evidence = components['schemas']['EvidenceRef'];
 const speakerLabels: Record<string, string> = {
@@ -46,7 +47,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
         {score.sections.filter(section => Number(section.applicable_weight) > 0).map(section => <div className="section-score" key={section.section_id}>
           <span>{section.title}</span><strong>{formatDecimal(section.normalized_points)} <span>/ {formatDecimal(section.normalized_maximum)}</span></strong>
         </div>)}
-        <p className="section-note">N/A исключены. Применимый вес: {formatDecimal(score.applicable_weight, 0)}.</p>
+        <p className="section-note">N/A исключены. Применимый вес: {formatWeight(score.applicable_weight)}.</p>
       </div>
       <div className="violations-summary">
         <span className="summary-label">Грубые нарушения</span>
@@ -60,7 +61,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
         <p className="muted">Серверный результат с учётом решений по апелляциям.</p>
         {evaluation.effective_score.reason && <p>{evaluation.effective_score.reason}</p>}</div>
       <div>{evaluation.effective_score.sections.map(section => <p key={section.section_id}>{section.title}: {formatDecimal(section.normalized_points)} / {formatDecimal(section.normalized_maximum)}</p>)}
-        <p>Применимый вес: {formatDecimal(evaluation.effective_score.applicable_weight, 0)}.</p>
+        <p>Применимый вес: {formatWeight(evaluation.effective_score.applicable_weight)}.</p>
         <p>Грубые нарушения: {evaluation.effective_score.flags.length ? 'есть' : 'не обнаружены'}. Флаг не изменяет балл.</p></div>
     </section>
     <p className="result-provenance">Ниже — исходные ответы, пояснения и доказательства. Версия чек-листа: {checklist.id}.</p>
@@ -79,7 +80,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
           </article>)}
         </div>
         <div className="panel-bottom">
-          {conversation.audio_url ? <a className="text-link" href={conversation.audio_url} target="_blank" rel="noreferrer">Открыть запись звонка</a> : <span>Аудиозапись отсутствует</span>}
+          <ConversationAudio conversation={conversation} />
           <span className="version-label">Версия диалога: {conversation.id}</span>
         </div>
       </section>
@@ -96,7 +97,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
             const tone = answer.type === 'na' ? 'na' : criterion.kind === 'flag' ? (points?.flagged ? 'danger' : 'clear') : Number(points?.quality ?? 0) === 1 ? 'clear' : 'partial';
             return <article className={`criterion${selectedCriterion === criterion.id ? ' criterion--selected' : ''}`} key={criterion.id}>
               <div className="criterion-title"><span className="criterion-id">{criterion.id}</span><h3>{criterion.title}</h3><span className={`answer-badge answer-badge--${tone}`}>{label}</span></div>
-              <div className="criterion-points">{criterion.kind === 'flag' ? 'Без веса и баллов' : <><span>Вес {formatDecimal(criterion.weight, 0)}</span><span>{answer.type === 'na' ? 'Исключён из расчёта' : `Начислено ${formatDecimal(points?.earned_points)}`}</span></>}</div>
+              <div className="criterion-points">{criterion.kind === 'flag' ? 'Без веса и баллов' : <><span>Вес {formatWeight(criterion.weight)}</span><span>{answer.type === 'na' ? 'Исключён из расчёта' : `Начислено ${formatDecimal(points?.earned_points)}`}</span></>}</div>
               <p className="explanation">{result.explanation}</p>
               {answer.type === 'na' && <p className="na-reason"><strong>Почему N/A:</strong> {answer.reason}</p>}
               <div className="evidence-actions">{result.evidence.map((evidence, index) => <button key={`${evidence.start_message_id}-${index}`} className="evidence-button" onClick={() => revealEvidence(evidence, criterion.id)} aria-label={`Показать доказательство ${criterion.id}${result.evidence.length > 1 ? `, фрагмент ${index + 1}` : ''}`}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-4 3v-3H2V3Z" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>{evidence.start_message_id === evidence.end_message_id ? 'Показать сообщение' : 'Показать фрагмент'}</button>)}</div>

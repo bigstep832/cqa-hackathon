@@ -27,7 +27,7 @@ export function CriterionFields({ criterion, index, sections, issues, onChange, 
         <EditorSelect path={`${path}.answer_type`} label="Тип ответа" value={criterion.answer_type} issues={issues} onChange={type => {
           onChange(changeAnswerType(criterion, type as CriterionDraft['answer_type'])); setTypeNotice(true);
         }}><option value="boolean">boolean — да / нет</option><option value="scale">scale — числовая шкала</option><option value="choice">choice — выбор варианта</option></EditorSelect>
-        {criterion.kind === 'scored' && <EditorField path={`${path}.weight`} label="Вес" value={criterion.weight} issues={issues} inputMode="decimal" onChange={weight => update({ weight })} />}
+        {criterion.kind === 'scored' && <EditorField path={`${path}.weight`} label="Вес" value={criterion.weight.replace('.', ',')} issues={issues} inputMode="decimal" onChange={weight => update({ weight: weight.replace(',', '.') })} />}
       </div>
       <p className="muted">Смена типа ответа заменяет варианты шаблоном выбранного типа. Проверьте значения, описания и quality.</p>
       {typeNotice && <p role="status">Варианты обновлены для типа {criterion.answer_type}. Заполните их описания.</p>}
