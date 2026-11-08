@@ -52,7 +52,7 @@ SQLite и полным A‑02 из `ecf4d74`. В Edge после переимп�
 | Typed ответы, запрещённые значения и ссылки evidence | contracts/evaluation | A | evaluation/test_provider.py | Bootstrap |
 | Mock только synthetic, live без auto fallback | evaluation/API/UI | A/C/B | Provider tests + banner smoke | Bootstrap |
 | Pydantic → OpenAPI → TS, все маршруты | contracts/scripts | A/C/B | export --check, generate:api:check | Bootstrap |
-| Настоящий AI анализ новых данных | evaluation | A | A-01/A-02, independent holdout | Planned |
+| Настоящий AI анализ новых данных | evaluation | A | A-01/A-02 | [Groq: 20 настоящих чатов](A02_GROQ_DIAGNOSTIC.md), 1 ошибка размера, 4 звонка не отправлены; качество и независимая разметка остаются открыты |
 | Импорт DEV/control по group_id и ручной JSON | services/storage/API | C | C-01 integration | API проверен на синтетическом источнике, реальный импорт впереди |
 | Повтор изменённого текста создаёт новую версию | storage | C | Import unchanged/changed test | Проверено API + SQLite |
 | Evidence старой оценки открывает старый snapshot | storage/API/UI | C/B | Reimport → old evaluation → evidence | Проверено через список истории в карточке после переимпорта и reload на FastAPI + SQLite |
@@ -63,7 +63,7 @@ SQLite и полным A‑02 из `ecf4d74`. В Edge после переимп�
 | Апелляция, confirm/override, reason, пересчёт | services/UI | C/B | C-04 + browser flow | Проверено через B, включая оригинал после reload и конфликт 409 |
 | Исходный AI immutable, decision атомарен и идемпотентен | storage/services | C | Duplicate/conflict/rollback tests | Проверено на синтетической оценке |
 | Аудио доступно, offset не выдумывается | import/UI | C/B | Call fixture, missing mapping | Через B проверены play/pause/seek и ошибка в карточке; HTML-плеер проверен API-регрессиями, реальное воспроизведение через новый backend впереди |
-| RU/KZ/EN без повреждения и смысловая оценка | Весь pipeline | A/B/C | Unicode import/UI + human eval | Planned |
+| RU/KZ/EN без повреждения и смысловая оценка | Весь pipeline | A/B/C | Unicode import/UI + A-02 | Настоящие оценки 8 RU, 6 KZ, 6 EN получены; смысловые ошибки перечислены в отчёте A-02 |
 | Новый технический ID не меняет решение | evaluation | A | Metamorphic eval | Planned |
 | Инструкция в transcript не подменяет rubric | evaluation | A | Adversarial synthetic eval | Planned |
 | Публичный repo, README, запуск другой машины | release | C | C-05 clean setup | Planned |
@@ -76,14 +76,14 @@ SQLite и полным A‑02 из `ecf4d74`. В Edge после переимп�
 
 | Требование | Владелец | Проверка | Состояние |
 | --- | --- | --- | --- |
-| Отдельный формат 1.0 и mapping восьми критериев | A | JSON Schema + вектор PDF 85.38 | Spec-ready; интеграционное ревью впереди |
+| Отдельный формат 1.0 и mapping восьми критериев | A | JSON Schema + вектор PDF 85.38 | A-04: ревью реализации завершено, [отчёт](A04_SEMANTIC_REVIEW.md) |
 | DEV 65 (60+5), PROD 10, точные исходные ID без пропусков/дублей | C | Независимый source manifest; negative ID/count cases | Проверено офлайн |
-| Типы, raw scales, N/A, числовой final_score и C08 | C + A review | Схема, общий scorer, сверка original_score | Офлайн тесты C-06 прошли, смысловое ревью A |
-| Evidence 1-based по всем ролям и нужному snapshot | C + A review | Диапазоны, чужой snapshot, верхняя граница | Офлайн тесты C-06 прошли, смысловое ревью A |
-| Original AI и официальный snapshot; не appeal/custom rubric | C + A review | История и несовместимая рубрика | Офлайн тесты C-06 прошли, смысловое ревью A |
+| Типы, raw scales, N/A, числовой final_score и C08 | C + A review | Схема, общий scorer, сверка original_score | Ревью A-04 завершено; независимый oracle проверил 5184 вектора |
+| Evidence 1-based по всем ролям и нужному snapshot | C + A review | Диапазоны, чужой snapshot, верхняя граница | Ревью A-04 реализации завершено; смысл настоящих пояснений проверяется отдельно |
+| Original AI и официальный snapshot; не appeal/custom rubric | C + A review | История и несовместимая рубрика | Ревью A-04 завершено |
 | Ошибки сохраняют ID, criteria=[], score=null; нет mock/подмен | C | Failed/missing/timeout + provenance tests | Проверено офлайн |
 | Отдельный офлайн-валидатор и одна команда export→validate→report | C | Репетиция synthetic вне официальных путей, без сети/платных вызовов | Проверено офлайн |
-| Rationale/error без персональных данных, секретов и traces | A/C | Ручное ревью плюс public-file guard | Planned |
+| Rationale/error без персональных данных, секретов и traces | A/C | Ручное ревью плюс public-file guard | D33/C01 требует обезличивания имени; технический guard не заменяет ручное ревью |
 | Оба JSON commit + push и доступны в сдаваемой ветке до 24ч | C | Открыть оба файла по переданной ссылке и сверить публичный SHA | Planned, C-05 |
 
 Один `check_public_files.py`, наличие двух файлов или успешная JSON Schema

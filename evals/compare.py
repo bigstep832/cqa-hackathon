@@ -26,7 +26,7 @@ class ReferenceRecord(FrozenModel):
     checklist_version_id: NonEmpty
     language: Language
     channel: Channel
-    origin: Literal["team_manual", "organizer"]
+    origin: Literal["team_manual", "team_human_confirmed_ai_draft", "organizer"]
     split: Literal["tune", "holdout"]
     scenario_group: NonEmpty
     answers: tuple[ReferenceAnswer, ...]

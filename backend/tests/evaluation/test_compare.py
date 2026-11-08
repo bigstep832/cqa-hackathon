@@ -39,6 +39,17 @@ def test_compare_uses_original_score_before_appeals() -> None:
     assert result["compared_answers"] == 8
 
 
+def test_human_confirmed_ai_labels_keep_distinct_provenance_in_report() -> None:
+    reference, evaluation = sample()
+    raw = reference.model_dump(mode="json")
+    raw["origin"] = "team_human_confirmed_ai_draft"
+    confirmed = ReferenceRecord.model_validate(raw)
+    result = compare([confirmed], [evaluation])
+    assert result["reference_origins"] == ["team_human_confirmed_ai_draft"]
+    assert result["criterion_accuracy"] == "1"
+    assert result["score_mae"] == "0.00"
+
+
 def test_failures_are_reported_and_not_silently_scored_zero() -> None:
     reference, evaluation = sample()
     raw = evaluation.model_dump(mode="json")
