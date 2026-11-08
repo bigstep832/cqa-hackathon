@@ -3,6 +3,8 @@ import type { components } from './api/generated/schema';
 import type { EvaluationResult } from './api/evaluation';
 import { formatDecimal, formatWeight } from './format';
 import { ConversationAudio } from './ConversationAudio';
+import { DemoAudio } from './DemoAudio';
+import { audioTime, useDemoAudio } from './useDemoAudio';
 
 type Evidence = components['schemas']['EvidenceRef'];
 const speakerLabels: Record<string, string> = {
@@ -13,6 +15,9 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
   const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
   const [selectedCriterion, setSelectedCriterion] = useState<string | null>(null);
   const { conversation, checklist, evaluation } = data;
+  const narration = useDemoAudio(conversation);
+  const cues = !narration.failed ? narration.track?.cues : undefined;
+  const activeMessage = cues && conversation.messages.filter(m => cues[m.message_id]! <= narration.position).at(-1);
   const score = evaluation.original_score;
   const answers = evaluation.output?.answers ?? [];
   if (evaluation.status !== 'succeeded' || !score || !evaluation.output || !evaluation.effective_score) return null;
@@ -35,6 +40,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
       <div className="dialogue-meta"><span className="tag">{conversation.language}</span><span>{conversation.channel === 'voice call' ? 'Звонок' : 'Чат'}</span><span>{conversation.messages.length} сообщений</span>{conversation.synthetic && <span className="tag tag--green">Синтетический</span>}</div>
     </section>
 
+    {narration.eligible && <DemoAudio player={narration} />}
     <div className="score-overview">
     <section className="summary" aria-label="Исходный результат">
       <div className="score-total">
@@ -86,12 +92,15 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
             aria-label={`${speakerLabels[message.speaker] ?? message.speaker}, ${message.timestamp_raw}`}
           >
             <div className="message-meta"><span className="speaker">{speakerLabels[message.speaker] ?? message.speaker}</span><time>{message.timestamp_raw}</time></div>
-            <p>{message.text}</p>
+            <p>{cues && <button type="button" className="turn-time"
+              aria-label={`Слушать с ${audioTime(cues[message.message_id]!)}`}
+              aria-current={activeMessage?.message_id === message.message_id ? 'time' : undefined}
+              onClick={() => narration.play(cues[message.message_id])}>▶ {audioTime(cues[message.message_id]!)}</button>}{message.text}</p>
             {highlightedIds.includes(message.message_id) && <span className="evidence-tag">Доказательство {selectedCriterion}</span>}
           </article>)}
         </div>
         <div className="panel-bottom">
-          <ConversationAudio conversation={conversation} />
+          {!narration.eligible && <ConversationAudio conversation={conversation} />}
           <span className="version-label">Версия диалога: {conversation.id}</span>
         </div>
       </section>

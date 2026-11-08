@@ -5,6 +5,8 @@
   "type": "module",
   "engines": { "node": ">=24 <25" },
   "scripts": {
+    "predev": "python ../scripts/render_demo_audio.py --optional",
+    "prebuild": "python ../scripts/render_demo_audio.py --optional",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
