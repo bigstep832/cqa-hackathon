@@ -23,9 +23,15 @@ from app.contracts.models import (
     EvaluationOutput,
     ProviderCall,
 )
+from app.evaluation.compact import build_compact_system_instruction, unpack_dialogue_payload
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
 from app.evaluation.factory import create_provider
-from app.evaluation.structured import build_system_instruction
+from app.evaluation.structured import (
+    CANDIDATE_INSTRUCTION,
+    SYSTEM_INSTRUCTION,
+    build_system_instruction,
+    build_user_payload,
+)
 from app.main import app
 from app.services import jobs, live_workflow
 from app.storage.conversations import import_conversations
@@ -111,7 +117,7 @@ def test_baseline_profile_preserves_legacy_identity_and_consumed_limits(database
     assert get_plan_id(queued.id) == legacy_id
     # Explicitly spelling the default after upgrade must neither revoke old jobs nor refund their cap.
     raw = json.loads(path.read_text(encoding="utf-8"))
-    path.write_text(json.dumps({**raw, "instruction_profile": "cqa-rubric-v1"}), encoding="utf-8")
+    path.write_text(json.dumps({**raw, "instruction_profile": "cqa-rubric-v1", "request_encoding": "canonical"}), encoding="utf-8")
     assert live_workflow.configured_plan()[0] == legacy_id
     transported = []
 
@@ -127,17 +133,25 @@ def test_baseline_profile_preserves_legacy_identity_and_consumed_limits(database
 
 
 @pytest.mark.parametrize("profile", [None, "cqa-rubric-v1", "cqa-rubric-v4-candidate"])
-def test_live_plan_profile_controls_sent_instruction_and_saved_provenance(database, tmp_path, monkeypatch, profile):
+@pytest.mark.parametrize("encoding", ["canonical", "compact-v1"])
+def test_live_plan_profile_controls_sent_instruction_and_saved_provenance(database, tmp_path, monkeypatch, profile, encoding):
     path = install_plan(tmp_path, monkeypatch)
-    legacy_id = hashlib.sha256(legacy_plan_bytes(path)).hexdigest()
     raw = json.loads(path.read_text(encoding="utf-8"))
+    raw.update(provider="groq", local_base_url=None)
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    monkeypatch.setenv("MODEL_API_KEY", "offline-test-key")
+    legacy_id = hashlib.sha256(legacy_plan_bytes(path)).hexdigest()
     if profile is not None:
-        path.write_text(json.dumps({**raw, "instruction_profile": profile}), encoding="utf-8")
+        raw["instruction_profile"] = profile
+    raw["request_encoding"] = encoding
+    path.write_text(json.dumps(raw), encoding="utf-8")
     plan_id, plan = live_workflow.configured_plan()
     expected_profile = profile or "cqa-rubric-v1"
-    assert (plan_id != legacy_id) == (expected_profile == "cqa-rubric-v4-candidate")
-    if expected_profile != "cqa-rubric-v1":
-        assert plan_id == hashlib.sha256(plan.model_dump_json().encode()).hexdigest()
+    assert (plan_id != legacy_id) == (expected_profile == "cqa-rubric-v4-candidate" or encoding == "compact-v1")
+    excluded = {"instruction_profile"} if expected_profile == "cqa-rubric-v1" else set()
+    if encoding == "canonical":
+        excluded.add("request_encoding")
+    assert plan_id == hashlib.sha256(plan.model_dump_json(exclude=excluded).encode()).hexdigest()
     sent = []
 
     def receive(req):
@@ -157,7 +171,14 @@ def test_live_plan_profile_controls_sent_instruction_and_saved_provenance(databa
     assert result.status == "succeeded" and len(sent) == 1
     assert get_plan_id(queued.id) == plan_id
     assert result.output.metadata.instruction_version == expected_profile
-    assert sent[0]["messages"][0]["content"] == build_system_instruction(load_synthetic_input(), profile=expected_profile)
+    case = load_synthetic_input()
+    if encoding == "compact-v1":
+        instruction = SYSTEM_INSTRUCTION if expected_profile == "cqa-rubric-v1" else CANDIDATE_INSTRUCTION
+        assert sent[0]["messages"][0]["content"] == build_compact_system_instruction(case, instruction=instruction)
+        assert unpack_dialogue_payload(json.loads(sent[0]["messages"][1]["content"])) == json.loads(build_user_payload(case))
+    else:
+        assert sent[0]["messages"][0]["content"] == build_system_instruction(case, profile=expected_profile)
+    assert result.output.metadata.pipeline_version.endswith("+cqa-compact-v1") == (encoding == "compact-v1")
     assert len(get_calls(queued.id)) == len(get_dispatches(queued.id)) == 1
 
 
@@ -334,9 +355,14 @@ def test_shutdown_joins_active_worker_before_recovery(database, monkeypatch):
     assert get_evaluation(queued.id).failure.code == "WORKER_INTERRUPTED"
 
 
-@pytest.mark.parametrize("changed", [{"model": "replacement"}, {"instruction_profile": "cqa-rubric-v4-candidate"}])
+@pytest.mark.parametrize("changed", [{"model": "replacement"}, {"instruction_profile": "cqa-rubric-v4-candidate"}, {"request_encoding": "compact-v1"}])
 def test_changed_plan_cannot_run_queued_job(database, tmp_path, monkeypatch, changed):
     path = install_plan(tmp_path, monkeypatch)
+    if "request_encoding" in changed:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw.update(provider="groq", local_base_url=None)
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        monkeypatch.setenv("MODEL_API_KEY", "offline-test-key")
     queued = jobs.create_evaluation(request("live"), "case")
     assert get_plan_id(queued.id) == live_workflow.configured_plan()[0]
     previous = json.loads(path.read_text(encoding="utf-8"))

@@ -40,6 +40,8 @@ def configured_plan() -> tuple[str, LivePlan]:
     # Keep the legacy baseline identity and its already-consumed SQLite limits.
     # An explicitly selected candidate must revoke the old queue/dispatch permission.
     exclude = {"instruction_profile"} if plan.instruction_profile == "cqa-rubric-v1" else set()
+    if plan.request_encoding == "canonical":
+        exclude.add("request_encoding")
     digest = hashlib.sha256(plan.model_dump_json(exclude=exclude).encode()).hexdigest()
     return digest, plan
 
@@ -259,6 +261,7 @@ async def live_provider(
         max_attempts=plan.max_attempts,
         max_output_tokens=plan.max_output_tokens,
         instruction_profile=plan.instruction_profile,
+        request_encoding=plan.request_encoding,
     )
     async with AttemptClient(transport, deadline) as client:
         yield create_provider(

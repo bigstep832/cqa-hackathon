@@ -24,6 +24,7 @@ from app.contracts.models import (
 )
 from app.domain.scoring import score
 from app.domain.snapshots import checklist_content_hash, conversation_content_hash
+from app.evaluation.compact import RequestEncoding
 from app.evaluation.structured import InstructionProfile
 
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
@@ -67,6 +68,7 @@ class LivePlan(FrozenModel):
     budget_usd: Money
     pricing: PricingCeiling
     instruction_profile: InstructionProfile = "cqa-rubric-v1"
+    request_encoding: RequestEncoding = "canonical"
 
     @property
     def reservation_per_request_usd(self) -> Decimal:
@@ -77,6 +79,8 @@ class LivePlan(FrozenModel):
 
     @model_validator(mode="after")
     def check_ceiling(self) -> LivePlan:
+        if self.request_encoding == "compact-v1" and self.provider not in {"groq", "openai"}:
+            raise ValueError("Compact encoding is supported only for OpenAI and Groq")
         if self.provider != "local" and self.local_base_url is not None:
             raise ValueError("Custom endpoint is allowed only for local models")
         if self.provider == "local" and self.local_base_url is None:
@@ -195,7 +199,8 @@ async def execute(
                        local_response_format=plan.local_response_format,
                        max_attempts=plan.max_attempts,
                        max_output_tokens=plan.max_output_tokens,
-                       instruction_profile=plan.instruction_profile),
+                       instruction_profile=plan.instruction_profile,
+                       request_encoding=plan.request_encoding),
         client=client, on_attempt=ledger.before_attempt,
     )
     predictions: list[Evaluation] = []
@@ -251,6 +256,7 @@ def main() -> int:
             "mode": "execute" if args.execute else "validate_only_no_network",
             "provider": plan.provider, "model": plan.model,
             "instruction_profile": plan.instruction_profile,
+            "request_encoding": plan.request_encoding,
             "selected_cases": len(selected), "omitted_cases": len(cases) - len(selected),
             "max_requests": plan.max_requests,
             "worst_case_reservation_usd": str(plan.reservation_per_request_usd * plan.max_requests),

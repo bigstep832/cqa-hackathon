@@ -10,8 +10,9 @@ from evals.live import LivePlan, RequestLedger, execute, main, private_output, v
 from pydantic import ValidationError
 
 from app.contracts.models import EvaluationInput, EvaluationSettings
+from app.evaluation.compact import unpack_dialogue_payload
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
-from app.evaluation.structured import build_system_instruction
+from app.evaluation.structured import build_system_instruction, build_user_payload
 
 
 def plan_data() -> dict:
@@ -177,9 +178,11 @@ def test_global_call_cap_includes_retry_and_keeps_failed_without_score(tmp_path:
     assert len(recorded[0]["calls"]) == 1
 
 
-def test_groq_free_plan_executes_through_common_scoring_and_ledger(tmp_path: Path) -> None:
+@pytest.mark.parametrize("encoding", ["canonical", "compact-v1"])
+def test_groq_free_plan_executes_through_common_scoring_and_ledger(tmp_path: Path, encoding: str) -> None:
     data = plan_data()
     data.update(provider="groq", model="openai/gpt-oss-120b", budget_usd="0", max_requests=1)
+    data.update(request_encoding=encoding, instruction_profile="cqa-rubric-v4-candidate")
     data["pricing"].update(input_usd_per_million="0", output_usd_per_million="0")
     plan = LivePlan.model_validate(data)
     case = live_input().model_copy(update={"settings": EvaluationSettings(
@@ -192,6 +195,9 @@ def test_groq_free_plan_executes_through_common_scoring_and_ledger(tmp_path: Pat
         assert request.url.host == "api.groq.com"
         assert json.loads((output / "ledger.json").read_text())["attempts_reserved"] == 1
         requests.append(request)
+        if encoding == "compact-v1":
+            body = json.loads(request.content)
+            assert unpack_dialogue_payload(json.loads(body["messages"][1]["content"])) == json.loads(build_user_payload(case))
         content = valid_response()["candidates"][0]["content"]["parts"][0]["text"]
         return httpx.Response(200, json={"choices": [{
             "finish_reason": "stop", "message": {"content": content},
@@ -203,10 +209,18 @@ def test_groq_free_plan_executes_through_common_scoring_and_ledger(tmp_path: Pat
         assert results[0].status == "succeeded"
         assert results[0].original_score.total == Decimal("85.38")
         assert results[0].output.metadata.provider == "groq"
+        assert results[0].output.metadata.instruction_version == "cqa-rubric-v4-candidate"
+        assert results[0].output.metadata.pipeline_version.endswith("+cqa-compact-v1") == (encoding == "compact-v1")
 
     asyncio.run(run())
     assert len(requests) == 1
     assert json.loads((output / "ledger.json").read_text())["reserved_usd"] == "0"
+
+
+@pytest.mark.parametrize("encoding", ["unknown", "", None, 1, "compact-v1"])
+def test_invalid_or_unsupported_encoding_rejected_before_execution(encoding) -> None:
+    with pytest.raises(ValidationError):
+        LivePlan.model_validate({**plan_data(), "request_encoding": encoding})  # Gemini has no compact codec.
 
 
 def test_local_runner_supports_server_without_api_key(tmp_path: Path) -> None:
