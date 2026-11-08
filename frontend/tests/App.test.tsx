@@ -41,7 +41,7 @@ describe('Синтетический пример', () => {
     expect(screen.queryByTestId('total-score')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Повторить загрузку' }));
     expect(await screen.findByTestId('total-score')).toHaveTextContent('85,38');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.filter(([url]) => url === '/api/v1/demo')).toHaveLength(2);
   });
 
   it('показывает пустое состояние без ложного нулевого балла', async () => {

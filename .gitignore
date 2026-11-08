@@ -8,6 +8,7 @@
 **/.mypy_cache/
 **/node_modules/
 **/dist/
+/frontend/public/demo-audio/
 **/coverage/
 **/playwright-report/
 **/test-results/

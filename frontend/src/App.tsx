@@ -88,7 +88,6 @@ export function App() {
         <button className={`nav-link${view === 'appeals' ? ' nav-link--active' : ''}`} aria-pressed={view === 'appeals'} onClick={() => setView('appeals')}><NavIcon name="appeals" />Апелляции</button>
         <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}><NavIcon name="demo" />Демо · mock</button>
       </nav>
-      <div className="sidebar-bottom"><p>DT20 · CQA</p><span className="muted">Диалоги и версии из серверного хранилища.</span></div>
     </aside>
     <main id="main" className="main" tabIndex={-1}>
       <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : viewTitles[view]}</p>
