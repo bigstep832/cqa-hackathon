@@ -44,7 +44,7 @@ def test_mock_cannot_run_as_live_or_analyze_organizer_data() -> None:
         asyncio.run(provider.evaluate(organizer))
 
 
-@pytest.mark.parametrize("name", ["gemini", "openai", "local"])
+@pytest.mark.parametrize("name", ["gemini", "openai", "groq", "local"])
 def test_transport_selection_does_not_call_network(name: str) -> None:
     config = ProviderConfig(
         provider=name,  # type: ignore[arg-type]

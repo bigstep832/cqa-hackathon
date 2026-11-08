@@ -95,6 +95,23 @@ def test_critical_true_changes_only_flag(package):
     assert row["score"] == {"final_score": 85.38, "critical_flag": True}
 
 
+def test_groq_calls_export_as_external_api_with_original_score(package):
+    selection, manifest, checklist, jobs = package
+    for key, job in list(jobs.items()):
+        call = job.calls[0].model_copy(update={"provider": "groq", "model": "openai/gpt-oss-120b"})
+        output = job.evaluation.output
+        metadata = output.metadata.model_copy(update={
+            "provider": call.provider, "model": call.model, "calls": (call,),
+        })
+        evaluation = job.evaluation.model_copy(update={"output": output.model_copy(update={"metadata": metadata})})
+        jobs[key] = replace(job, evaluation=evaluation, calls=(call,), request=job.request.model_copy(
+            update={"provider": call.provider, "model": call.model},
+        ))
+    document = build_submission(selection, manifest, checklist, jobs)
+    assert document["model"] == {"mode": "external_api", "name": "groq/openai/gpt-oss-120b"}
+    assert all(row["score"]["final_score"] == 85.38 for row in document["results"])
+
+
 @pytest.mark.parametrize("problem", ["custom-weight", "wrong-snapshot", "manual", "synthetic", "duplicate",
                                      "wrong-channel", "missing", "changed-score", "pending", "no-calls", "no-plan", "mock"])
 def test_rejects_wrong_data_or_provenance(package, problem):
@@ -222,6 +239,7 @@ def test_official_team_name_is_exact(package, name):
 @pytest.mark.parametrize("text", ["Contact person@example.test", "Call +7 (700) 111 22 33",
                                   "https://example.test/private-path", "token=private",
                                   "github_pat_" + "x" * 60,
+                                  "gsk_" + "invented" * 8,
                                   "Bearer\r\n\tprivate-token", "Call +7\n(700)\t111 22 33"])
 def test_sensitive_rationale_stops_before_writing(package, text):
     selection, manifest, checklist, jobs = package

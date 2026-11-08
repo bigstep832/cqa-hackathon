@@ -47,7 +47,7 @@ CRITERIA = dict(zip(
 # to natural-language public fields, while checking credentials in every field.
 PRIVATE_ID = re.compile(
     r"https?://|www\.|\bBearer\s+|(?:api[_-]?key|token|signature|sig)\s*[:=]|"
-    r"\b(?:sk-|AIza|gh[pousr]_|github_pat_)[A-Za-z0-9_-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY|"
+    r"\b(?:sk-|gsk_|AIza|gh[pousr]_|github_pat_)[A-Za-z0-9_-]{12,}|-----BEGIN [A-Z ]*PRIVATE KEY|"
     r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|\b[A-Za-z]:[\\/]|/(?:home|Users|tmp|var)/",
     re.IGNORECASE,
 )
@@ -236,7 +236,7 @@ def build_submission(
             cutoff[job_id] if cutoff is not None and pending_at_cutoff else (*job.calls, *job.dispatches)
         )
         for call in calls:
-            if call.provider not in {"openai", "gemini", "local"}:
+            if call.provider not in {"openai", "gemini", "groq", "local"}:
                 raise SubmissionError("Unknown provider in execution history.")
             if (isinstance(call, DispatchAttempt) or call.purpose == "evaluate") and (call.provider, call.model) != (
                 job.request.provider, job.request.model

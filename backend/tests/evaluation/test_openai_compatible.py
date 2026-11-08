@@ -133,6 +133,70 @@ def test_new_criterion_is_generated_without_eight_id_hardcoding() -> None:
     }
 
 
+@pytest.mark.parametrize("model", ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "other-schema-model"])
+def test_groq_keeps_identity_strict_schema_and_own_request_parameters(model: str) -> None:
+    case = live_input("groq")
+    case = case.model_copy(update={"settings": case.settings.model_copy(update={"model": model})})
+    observed = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "https://api.groq.com/openai/v1/chat/completions"
+        assert request.headers["Authorization"] == "Bearer " + TEST_KEY
+        body = json.loads(request.content)
+        observed.append(body)
+        assert body["model"] == model
+        assert body["response_format"]["json_schema"]["strict"] is True
+        assert body["max_completion_tokens"] == 4096
+        assert body["n"] == 1 and body["stream"] is False
+        assert not {"store", "max_tokens", "reasoning_format", "tools"} & body.keys()
+        if model.startswith("openai/gpt-oss-"):
+            assert body["reasoning_effort"] == "medium"
+            assert body["include_reasoning"] is False
+        else:
+            assert "reasoning_effort" not in body and "include_reasoning" not in body
+        return httpx.Response(200, json=completion())
+
+    output = run_provider(handler, evaluation_input=case, config=OpenAICompatibleConfig(
+        provider="groq", api_key=TEST_KEY, max_output_tokens=4096,
+    ))
+    assert len(observed) == 1 and len(output.answers) == 8
+    assert output.metadata.provider == "groq" and output.metadata.model == model
+    assert output.metadata.pipeline_version == "groq-chat-v1"
+    assert output.metadata.calls[0].provider == "groq"
+    assert output.metadata.calls[0].output_tokens == 12  # Includes reasoning once.
+    assert output.metadata.calls[0].cost_usd is None
+    assert output.answers[1].answer.type == "na"
+    assert all(e.conversation_version_id == case.conversation.id for a in output.answers for e in a.evidence)
+
+
+@pytest.mark.parametrize("override", [
+    {"api_key": None}, {"base_url": "https://example.org/v1"}, {"response_format": "json_object"},
+])
+def test_groq_rejects_missing_key_custom_endpoint_or_non_strict_mode(override: dict) -> None:
+    values = {"provider": "groq", "api_key": TEST_KEY, **override}
+    with pytest.raises(ValueError):
+        OpenAICompatibleConfig(**values)
+
+
+@pytest.mark.parametrize("status", [302, 429])
+def test_groq_failure_has_one_recorded_attempt_without_redirect_or_fallback(status: int) -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(status, headers={"Location": "https://example.org/receive"},
+                              json={"error": "private upstream detail"})
+
+    with pytest.raises(ProviderExecutionError) as caught:
+        run_provider(handler, evaluation_input=live_input("groq"), config=OpenAICompatibleConfig(
+            provider="groq", api_key=TEST_KEY, max_attempts=1,
+        ))
+    assert len(requests) == 1
+    assert caught.value.status_code == status
+    assert len(caught.value.calls) == 1 and caught.value.calls[0].provider == "groq"
+    assert "private upstream detail" not in str(caught.value)
+
+
 @pytest.mark.parametrize("base_url", [
     "http://localhost:11434/v1", "http://127.0.0.1:8001/v1/", "http://[::1]:8080/v1",
 ])

@@ -161,6 +161,38 @@ def test_global_call_cap_includes_retry_and_keeps_failed_without_score(tmp_path:
     assert len(recorded[0]["calls"]) == 1
 
 
+def test_groq_free_plan_executes_through_common_scoring_and_ledger(tmp_path: Path) -> None:
+    data = plan_data()
+    data.update(provider="groq", model="openai/gpt-oss-120b", budget_usd="0", max_requests=1)
+    data["pricing"].update(input_usd_per_million="0", output_usd_per_million="0")
+    plan = LivePlan.model_validate(data)
+    case = live_input().model_copy(update={"settings": EvaluationSettings(
+        mode="live", provider=plan.provider, model=plan.model,
+    )})
+    output = tmp_path / "groq"
+    requests = []
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "api.groq.com"
+        assert json.loads((output / "ledger.json").read_text())["attempts_reserved"] == 1
+        requests.append(request)
+        content = valid_response()["candidates"][0]["content"]["parts"][0]["text"]
+        return httpx.Response(200, json={"choices": [{
+            "finish_reason": "stop", "message": {"content": content},
+        }]})
+
+    async def run() -> None:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
+            results = await execute([case], plan, output, api_key="offline-key", client=client)
+        assert results[0].status == "succeeded"
+        assert results[0].original_score.total == Decimal("85.38")
+        assert results[0].output.metadata.provider == "groq"
+
+    asyncio.run(run())
+    assert len(requests) == 1
+    assert json.loads((output / "ledger.json").read_text())["reserved_usd"] == "0"
+
+
 def test_local_runner_supports_server_without_api_key(tmp_path: Path) -> None:
     data = plan_data()
     data.update(provider="local", local_base_url="http://127.0.0.1:11434/v1",

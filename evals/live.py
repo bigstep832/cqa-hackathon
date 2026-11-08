@@ -53,7 +53,7 @@ class PricingCeiling(FrozenModel):
 
 
 class LivePlan(FrozenModel):
-    provider: Literal["gemini", "openai", "local"]
+    provider: Literal["gemini", "openai", "groq", "local"]
     model: NonEmpty
     local_base_url: str | None = None
     local_response_format: Literal["json_schema", "json_object"] = "json_schema"

@@ -1,9 +1,10 @@
-"""Explicit OpenAI Chat Completions or loopback-compatible provider.
+"""Explicit OpenAI, Groq, or loopback-compatible provider.
 
 No key discovery, network call on construction, redirects, tools, or mock fallback.
 The configured model/server must support the selected response format. Local JSON
 mode is explicit and always receives the same schema plus strict server validation.
 API reference: https://developers.openai.com/api/docs/guides/structured-outputs
+Groq: https://console.groq.com/docs/structured-outputs
 """
 
 from __future__ import annotations
@@ -32,13 +33,15 @@ from app.evaluation.structured import (
 )
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 PIPELINE_VERSION = "openai-compatible-v1"
+GROQ_PIPELINE_VERSION = "groq-chat-v1"
 _RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
 
 
 @dataclass(frozen=True, kw_only=True)
 class OpenAICompatibleConfig:
-    provider: Literal["openai", "local"] = "openai"
+    provider: Literal["openai", "groq", "local"] = "openai"
     api_key: str | None = field(default=None, repr=False)
     base_url: str | None = None
     response_format: Literal["json_schema", "json_object"] = "json_schema"
@@ -49,7 +52,7 @@ class OpenAICompatibleConfig:
     retry_delay_seconds: float = 0.25
 
     def __post_init__(self) -> None:
-        if self.provider not in {"openai", "local"}:
+        if self.provider not in {"openai", "groq", "local"}:
             raise ValueError("Unsupported provider")
         if type(self.max_attempts) is not int or not 1 <= self.max_attempts <= 3:
             raise ValueError("max_attempts must be an integer from 1 to 3")
@@ -72,13 +75,14 @@ class OpenAICompatibleConfig:
             or any(character.isspace() for character in self.api_key)
         ):
             raise ValueError("API key must be a nonempty ASCII token without whitespace")
-        if self.provider == "openai":
+        if self.provider in {"openai", "groq"}:
+            label = "OpenAI" if self.provider == "openai" else "Groq"
             if self.api_key is None:
-                raise ValueError("An explicit OpenAI API key is required")
+                raise ValueError(f"An explicit {label} API key is required")
             if self.base_url is not None:
-                raise ValueError("OpenAI uses a fixed endpoint; base_url is local-only")
+                raise ValueError(f"{label} uses a fixed endpoint; base_url is local-only")
             if self.response_format != "json_schema":
-                raise ValueError("OpenAI requires a model supporting strict JSON Schema")
+                raise ValueError(f"{label} requires a model supporting strict JSON Schema")
         else:
             _local_base_url(self.base_url)
 
@@ -158,7 +162,12 @@ class OpenAICompatibleEvaluationProvider:
         self._client = client
         self._on_attempt = on_attempt
         self._on_call = on_call
-        base_url = OPENAI_BASE_URL if config.provider == "openai" else _local_base_url(config.base_url)
+        if config.provider == "openai":
+            base_url = OPENAI_BASE_URL
+        elif config.provider == "groq":
+            base_url = GROQ_BASE_URL
+        else:
+            base_url = _local_base_url(config.base_url)
         self._endpoint = base_url + "/chat/completions"
 
     async def evaluate(self, evaluation_input: EvaluationInput) -> EvaluationOutput:
@@ -185,14 +194,21 @@ class OpenAICompatibleEvaluationProvider:
                 "stream": False,
                 "n": 1,
             }
-            # The OpenAI parameter includes hidden reasoning tokens. Local endpoints
+            # The cloud parameter includes hidden reasoning tokens. Local endpoints
             # use the common legacy compatible parameter; no silent parameter retry.
             token_parameter = (
-                "max_completion_tokens" if self.config.provider == "openai" else "max_tokens"
+                "max_tokens" if self.config.provider == "local" else "max_completion_tokens"
             )
             payload[token_parameter] = self.config.max_output_tokens
             if self.config.provider == "openai":
                 payload["store"] = False
+            elif self.config.provider == "groq" and validated.settings.model in {
+                "openai/gpt-oss-120b", "openai/gpt-oss-20b",
+            }:
+                # GPT-OSS uses these parameters, not reasoning_format. Keep hidden
+                # reasoning out of the response; explanations remain in the schema.
+                payload["reasoning_effort"] = "medium"
+                payload["include_reasoning"] = False
             encoded = json.dumps(
                 payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False
             ).encode("utf-8")
@@ -251,7 +267,9 @@ class OpenAICompatibleEvaluationProvider:
                     text = _response_text(response)
                     metadata = EvaluationMetadata(
                         mode="live", provider=self.config.provider, model=evaluation_input.settings.model,
-                        instruction_version=INSTRUCTION_VERSION, pipeline_version=PIPELINE_VERSION,
+                        instruction_version=INSTRUCTION_VERSION,
+                        pipeline_version=(GROQ_PIPELINE_VERSION if self.config.provider == "groq"
+                                          else PIPELINE_VERSION),
                         calls=tuple(calls),
                     )
                     return parse_model_response(text, evaluation_input, metadata)

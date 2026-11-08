@@ -12,7 +12,7 @@ from app.evaluation.provider import EvaluationProvider
 
 @dataclass(frozen=True, kw_only=True)
 class ProviderConfig:
-    provider: Literal["fixture", "gemini", "openai", "local"] = "fixture"
+    provider: Literal["fixture", "gemini", "openai", "groq", "local"] = "fixture"
     api_key: str | None = field(default=None, repr=False)
     local_base_url: str | None = None
     local_response_format: Literal["json_schema", "json_object"] = "json_schema"
@@ -54,7 +54,7 @@ def create_provider(
             ),
             client=client, on_attempt=on_attempt, on_call=on_call,
         )
-    if config.provider in {"openai", "local"}:
+    if config.provider in {"openai", "groq", "local"}:
         from app.evaluation.openai_compatible import (
             OpenAICompatibleConfig,
             OpenAICompatibleEvaluationProvider,
