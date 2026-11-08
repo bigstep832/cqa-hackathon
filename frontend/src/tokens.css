@@ -2,13 +2,21 @@
   color-scheme: light;
   --canvas: #f3f6f5;
   --surface: #ffffff;
+  --surface-tint: #f8fbf9;
   --ink: #20332c;
   --muted: #617269;
   --line: #dde5e0;
+  --control-border: #84978d;
   --green: #145a46;
+  --green-hover: #104735;
   --green-soft: #edf5f0;
+  --green-line: #c5dbcf;
   --amber: #896414;
   --amber-soft: #fcf7e9;
+  --amber-line: #e8d8ac;
   --danger: #a2312c;
+  --danger-soft: #fff3f1;
   --focus: #307bca;
+  --radius: 12px;
+  --radius-sm: 7px;
 }

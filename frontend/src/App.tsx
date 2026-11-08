@@ -1,18 +1,40 @@
 import { useEffect, useState } from 'react';
-import type { components } from './api/generated/schema';
 import { fetchDemo, type DemoPayload } from './api/demo';
-import { formatDecimal } from './format';
+import { ReviewWorkspace } from './ReviewWorkspace';
+import { ConversationsScreen } from './ConversationsScreen';
+import { EvaluationWorkspace } from './EvaluationWorkspace';
+import { ChecklistsScreen } from './checklists/ChecklistsScreen';
+import { AppealsScreen } from './AppealsScreen';
+import { appealRoute } from './api/appeals';
+import { OperatorsScreen } from './operators/OperatorsScreen';
+import { operatorHref, operatorRoute } from './operators/route';
 
 type LoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
   | { status: 'empty' }
   | { status: 'ready'; data: DemoPayload };
-type Evidence = components['schemas']['EvidenceRef'];
 
-const speakerLabels: Record<string, string> = {
-  client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система',
+const viewDescriptions = {
+  conversations: 'Диалоги, транскрипты и оценка качества работы оператора.',
+  operators: 'Нагрузка, результаты звонков и качество обслуживания по операторам.',
+  checklists: 'Критерии качества и сохранённые версии правил оценки.',
+  appeals: 'Рассмотрение обращений с сохранением исходной оценки и доказательств.',
+  demo: 'Синтетический сценарий для проверки интерфейса без AI-запросов.',
 };
+const viewTitles: Record<keyof typeof viewDescriptions, string> = {
+  conversations: 'Диалоги', operators: 'Операторы', checklists: 'Чек-листы', appeals: 'Апелляции', demo: 'Проверка диалога',
+};
+function NavIcon({ name }: { name: keyof typeof viewDescriptions }) {
+  const paths = {
+    conversations: 'M4 4h16v12H9l-5 4V4Z',
+    operators: 'M3 20v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v2M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7-5a3 3 0 0 1 0 6m1 3a5 5 0 0 1 4 5',
+    checklists: 'M9 6h11M9 12h11M9 18h11M3 5l1 1 2-2M3 11l1 1 2-2M3 17l1 1 2-2',
+    appeals: 'M12 3v18M4 7h16M4 7l-3 6h6L4 7Zm16 0-3 6h6l-3-6ZM7 21h10',
+    demo: 'm8 5 11 7-11 7V5Z',
+  };
+  return <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true"><path d={paths[name]} /></svg>;
+}
 
 function Mark({ small = false }: { small?: boolean }) {
   return <svg className={small ? 'brand-mark brand-mark--small' : 'brand-mark'} viewBox="0 0 32 32" aria-hidden="true">
@@ -22,6 +44,62 @@ function Mark({ small = false }: { small?: boolean }) {
 }
 
 export function App() {
+  const [view, selectView] = useState<keyof typeof viewDescriptions>(() =>
+    operatorRoute() !== null ? 'operators' : appealRoute() !== null ? 'appeals' : 'conversations');
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [operatorId, setOperatorId] = useState(() => operatorRoute() ?? '');
+  const [appealId, setAppealId] = useState(() => appealRoute() ?? '');
+  function setView(next: typeof view, selectedConversation: string | null = null) {
+    selectView(next); setAppealId(''); setConversationId(selectedConversation); setOperatorId('');
+    const url = next === 'appeals' ? '#appeals' : next === 'operators' ? operatorHref('') : `${location.pathname}${location.search}`;
+    if ((view === 'operators' || next === 'operators') && new URL(url, location.href).href !== location.href) {
+      history.pushState({ cqaView: next, conversationId: selectedConversation }, '', url);
+    } else {
+      history.replaceState({ cqaView: next, conversationId: selectedConversation }, '', url);
+    }
+  }
+  useEffect(() => {
+    const change = () => {
+      const operator = operatorRoute();
+      if (operator !== null) { setOperatorId(operator); selectView('operators'); return; }
+      const id = appealRoute();
+      if (id !== null) { setAppealId(id); selectView('appeals'); return; }
+      if (!location.hash) {
+        const prior = history.state?.cqaView;
+        setConversationId(typeof history.state?.conversationId === 'string' ? history.state.conversationId : null);
+        selectView(prior === 'demo' || prior === 'checklists' ? prior : 'conversations');
+      }
+    };
+    window.addEventListener('hashchange', change);
+    window.addEventListener('popstate', change);
+    return () => { window.removeEventListener('hashchange', change); window.removeEventListener('popstate', change); };
+  }, []);
+  return <div className="app-shell">
+    <a className="skip-link" href="#main">Перейти к содержимому</a>
+    <aside className="sidebar" aria-label="Разделы CQA">
+      <a className="brand" href="#main" aria-label="CQA — проверка качества"><Mark /><span>CQA<span className="brand-caption">Freedom Broker</span></span></a>
+      <nav className="sidebar-section" aria-label="Рабочее пространство">
+        <span className="sidebar-label">Рабочее пространство</span>
+        <button className={`nav-link${view === 'conversations' ? ' nav-link--active' : ''}`} aria-pressed={view === 'conversations'} onClick={() => setView('conversations')}><NavIcon name="conversations" />Диалоги</button>
+        <button className={`nav-link${view === 'operators' ? ' nav-link--active' : ''}`} aria-pressed={view === 'operators'} onClick={() => setView('operators')}><NavIcon name="operators" />Операторы</button>
+        <button className={`nav-link${view === 'checklists' ? ' nav-link--active' : ''}`} aria-pressed={view === 'checklists'} onClick={() => setView('checklists')}><NavIcon name="checklists" />Чек-листы</button>
+        <button className={`nav-link${view === 'appeals' ? ' nav-link--active' : ''}`} aria-pressed={view === 'appeals'} onClick={() => setView('appeals')}><NavIcon name="appeals" />Апелляции</button>
+        <button className={`nav-link${view === 'demo' ? ' nav-link--active' : ''}`} aria-pressed={view === 'demo'} onClick={() => setView('demo')}><NavIcon name="demo" />Демо · mock</button>
+      </nav>
+      <div className="sidebar-bottom"><p>DT20 · CQA</p><span className="muted">Диалоги и версии из серверного хранилища.</span></div>
+    </aside>
+    <main id="main" className="main" tabIndex={-1}>
+      <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : viewTitles[view]}</p>
+        <h1>{viewTitles[view]}</h1><p className="page-description">{viewDescriptions[view]}</p></div></header>
+      {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : view === 'appeals' ? <AppealsScreen key={appealId} evaluationId={appealId} />
+        : view === 'operators' ? <OperatorsScreen operatorId={operatorId} openConversation={id => setView('conversations', id)} /> : <ConversationsScreen initialVersionId={conversationId} />}
+      <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
+    </main>
+  </div>;
+}
+
+export function DemoScreen() {
+  const [evaluating, setEvaluating] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
@@ -44,26 +122,12 @@ export function App() {
     setAttempt(previous => previous + 1);
   }
 
-  return <div className="app-shell">
-    <a className="skip-link" href="#main">Перейти к содержимому</a>
-    <aside className="sidebar" aria-label="Разделы CQA">
-      <a className="brand" href="#main" aria-label="CQA — проверка качества"><Mark /><span>CQA<span className="brand-caption">Качество диалогов</span></span></a>
-      <div className="sidebar-section">
-        <span className="sidebar-label">Рабочее пространство</span>
-        <a className="nav-link nav-link--active" href="#main" aria-current="page"><span className="nav-symbol" aria-hidden="true">▤</span>Диалоги<span className="nav-count">{state.status === 'ready' ? '1' : '—'}</span></a>
-      </div>
-      <div className="sidebar-bottom">
-        <span className="stage-label"><span className="status-dot" />Этап 0</span>
-        <p>Общий каркас команды</p>
-        <span className="muted">AI-оценщик и рабочие процессы — следующие задачи.</span>
-      </div>
-    </aside>
+  if (evaluating && state.status === 'ready') return <>
+    <button className="secondary-button evaluation-back" onClick={() => setEvaluating(false)}>К демонстрационной карточке</button>
+    <EvaluationWorkspace conversationVersionId={state.data.conversation.id} />
+  </>;
 
-    <main id="main" className="main" tabIndex={-1}>
-      <header className="page-header">
-        <div><p className="breadcrumb">Диалоги <span aria-hidden="true">/</span> Тестовый пример</p><h1>Проверка диалога</h1></div>
-        <span className="stage-chip">Локальный прототип</span>
-      </header>
+  return <>
       <div className="demo-banner" role="note">
         <span className="banner-icon" aria-hidden="true">i</span>
         <div><strong>Тестовые данные — не AI-оценка</strong><p>Синтетический разговор и заранее заданные ответы для проверки интерфейса и расчёта.</p></div>
@@ -72,102 +136,9 @@ export function App() {
       {state.status === 'loading' && <div className="state-panel" role="status"><span className="loading-dot" aria-hidden="true" /><h2>Загружаем тестовый пример</h2><p>Получаем диалог, критерии и результат расчёта.</p></div>}
       {state.status === 'error' && <div className="state-panel state-panel--error" role="alert"><h2>Пример не загрузился</h2><p>{state.message}</p><p className="muted">Проверьте подключение к серверу и повторите загрузку.</p><button className="primary-button" onClick={retry}>Повторить загрузку</button></div>}
       {state.status === 'empty' && <div className="state-panel"><Mark small /><h2>Пока нет диалогов</h2><p>Сервер не вернул тестовый разговор.</p><button className="primary-button" onClick={retry}>Обновить</button></div>}
-      {state.status === 'ready' && <ReviewWorkspace data={state.data} />}
-      <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>
-    </main>
-  </div>;
-}
-
-function ReviewWorkspace({ data }: { data: DemoPayload }) {
-  const [highlightedIds, setHighlightedIds] = useState<string[]>([]);
-  const [selectedCriterion, setSelectedCriterion] = useState<string | null>(null);
-  const { conversation, checklist, evaluation } = data;
-  const score = evaluation.original_score;
-  const answers = evaluation.output?.answers ?? [];
-  if (!score) return null;
-
-  function revealEvidence(evidence: Evidence, criterionId: string) {
-    const start = conversation.messages.findIndex(message => message.message_id === evidence.start_message_id);
-    const end = conversation.messages.findIndex(message => message.message_id === evidence.end_message_id);
-    if (evidence.conversation_version_id !== conversation.id || start < 0 || end < start) return;
-    const ids = conversation.messages.slice(start, end + 1).map(message => message.message_id);
-    setHighlightedIds(ids);
-    setSelectedCriterion(criterionId);
-    const target = document.getElementById(`message-${evidence.start_message_id}`);
-    target?.focus({ preventScroll: true });
-    target?.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
-  }
-
-  return <>
-    <section className="dialogue-selector" aria-label="Список диалогов">
-      <div><span className="sidebar-label">Выбранный диалог</span><a className="selected-dialogue" href="#transcript-heading">Демонстрационный разговор <span aria-hidden="true">↗</span></a></div>
-      <div className="dialogue-meta"><span className="tag">{conversation.language}</span><span>{conversation.channel === 'voice call' ? 'Звонок' : 'Чат'}</span><span>{conversation.messages.length} сообщений</span><span className="tag tag--green">Синтетический</span></div>
-    </section>
-
-    <section className="summary" aria-label="Результат расчёта">
-      <div className="score-total">
-        <span className="summary-label">Общий балл</span>
-        <div><strong data-testid="total-score">{formatDecimal(score.total)}</strong><span className="score-scale">/ 100</span></div>
-        <span className="score-note">Исходный тестовый результат</span>
-        {score.reason && <span className="score-note">{score.reason}</span>}
-      </div>
-      <div className="section-scores">
-        <p className="summary-label">Вклад секций в общий балл</p>
-        {score.sections.filter(section => Number(section.applicable_weight) > 0).map(section => <div className="section-score" key={section.section_id}>
-          <span>{section.title}</span><strong>{formatDecimal(section.normalized_points)} <span>/ {formatDecimal(section.normalized_maximum)}</span></strong>
-        </div>)}
-        <p className="section-note">N/A исключены. Применимый вес: {formatDecimal(score.applicable_weight, 0)}.</p>
-      </div>
-      <div className="violations-summary">
-        <span className="summary-label">Грубые нарушения</span>
-        <strong className={score.flags.length ? 'violation-label' : 'clear-label'}>{score.flags.length ? 'Есть нарушение' : 'Не обнаружены'}</strong>
-        <p>Отдельный флаг.<br />Не изменяет общий балл.</p>
-      </div>
-    </section>
-
-    <div className="review-grid">
-      <section className="panel transcript-panel" aria-labelledby="transcript-heading">
-        <div className="panel-header"><div><h2 id="transcript-heading">Транскрипт</h2><p>Оцениваются действия оператора</p></div><span className="message-counter">{conversation.messages.length}</span></div>
-        <div className="transcript">
-          {conversation.messages.map(message => <article
-            className={`message message--${message.speaker}${highlightedIds.includes(message.message_id) ? ' message--highlighted' : ''}`}
-            key={message.message_id} id={`message-${message.message_id}`} tabIndex={-1}
-            aria-label={`${speakerLabels[message.speaker] ?? message.speaker}, ${message.timestamp_raw}`}
-          >
-            <div className="message-meta"><span className="speaker">{speakerLabels[message.speaker] ?? message.speaker}</span><time>{message.timestamp_raw}</time></div>
-            <p>{message.text}</p>
-            {highlightedIds.includes(message.message_id) && <span className="evidence-tag">Доказательство {selectedCriterion}</span>}
-          </article>)}
-        </div>
-        <div className="panel-bottom">
-          {conversation.audio_url ? <a className="text-link" href={conversation.audio_url} target="_blank" rel="noreferrer">Открыть запись звонка</a> : <span>Для этого примера аудиозаписи нет</span>}
-          <span className="version-label">Версия диалога: {conversation.id}</span>
-        </div>
-      </section>
-
-      <section className="panel criteria-panel" aria-labelledby="criteria-heading">
-        <div className="panel-header"><div><h2 id="criteria-heading">Оценка по критериям</h2><p>{checklist.name} · версия {checklist.version}</p></div><span className="message-counter">{checklist.criteria.length}</span></div>
-        <div className="criteria-list">
-          {checklist.criteria.map(criterion => {
-            const result = answers.find(answer => answer.criterion_id === criterion.id);
-            const points = score.criteria.find(item => item.criterion_id === criterion.id);
-            if (!result) return <div className="criterion" key={criterion.id}><h3>{criterion.title}</h3><p>Ответ отсутствует</p></div>;
-            const answer = result.answer;
-            const label = answer.type === 'na' ? 'N/A' : criterion.options.find(option => option.value === answer.value)?.label ?? String(answer.value);
-            const tone = answer.type === 'na' ? 'na' : criterion.kind === 'flag' ? (points?.flagged ? 'danger' : 'clear') : Number(points?.quality ?? 0) === 1 ? 'clear' : 'partial';
-            return <article className={`criterion${selectedCriterion === criterion.id ? ' criterion--selected' : ''}`} key={criterion.id}>
-              <div className="criterion-title"><span className="criterion-id">{criterion.id}</span><h3>{criterion.title}</h3><span className={`answer-badge answer-badge--${tone}`}>{label}</span></div>
-              <div className="criterion-points">{criterion.kind === 'flag' ? 'Без веса и баллов' : <><span>Вес {formatDecimal(criterion.weight, 0)}</span><span>{answer.type === 'na' ? 'Исключён из расчёта' : `Начислено ${formatDecimal(points?.earned_points)}`}</span></>}</div>
-              <p className="explanation">{result.explanation}</p>
-              {answer.type === 'na' && <p className="na-reason"><strong>Почему N/A:</strong> {answer.reason}</p>}
-              <div className="evidence-actions">{result.evidence.map((evidence, index) => <button key={`${evidence.start_message_id}-${index}`} className="evidence-button" onClick={() => revealEvidence(evidence, criterion.id)} aria-label={`Показать доказательство ${criterion.id}${result.evidence.length > 1 ? `, фрагмент ${index + 1}` : ''}`}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12v8H7l-4 3v-3H2V3Z" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>{evidence.start_message_id === evidence.end_message_id ? 'Показать сообщение' : 'Показать фрагмент'}</button>)}</div>
-            </article>;
-          })}
-        </div>
-        <div className="panel-bottom"><span>Переход открывает исходный текст доказательства</span></div>
-      </section>
-    </div>
-    <div className="sr-only" role="status" aria-live="polite">{selectedCriterion ? `Показано доказательство для ${selectedCriterion}. Сообщений: ${highlightedIds.length}.` : ''}</div>
-    <section className="next-steps" aria-labelledby="next-heading"><h2 id="next-heading">Дальше в работе команды</h2><p>AI-оценщик, импорт новых наборов, редактор критериев и апелляции ещё не реализованы. Этот экран проверяет общий формат результата и переход к доказательствам.</p></section>
+      {state.status === 'ready' && <>
+        <button className="primary-button" onClick={() => setEvaluating(true)}>Оценить встроенный пример</button>
+        <ReviewWorkspace data={state.data} />
+      </>}
   </>;
 }

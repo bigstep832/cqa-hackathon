@@ -1275,6 +1275,95 @@
         "title": "EvaluationCreateRequest",
         "type": "object"
       },
+      "EvaluationHistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "checklist_version_id": {
+            "minLength": 1,
+            "title": "Checklist Version Id",
+            "type": "string"
+          },
+          "conversation_version_id": {
+            "minLength": 1,
+            "title": "Conversation Version Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "mock",
+              "live"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "conversation_version_id",
+          "checklist_version_id",
+          "mode",
+          "status",
+          "created_at"
+        ],
+        "title": "EvaluationHistoryItem",
+        "type": "object"
+      },
+      "EvaluationHistoryList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationHistoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "default": 25,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "EvaluationHistoryList",
+        "type": "object"
+      },
       "EvaluationMetadata": {
         "additionalProperties": false,
         "properties": {
@@ -1372,6 +1461,19 @@
           "end_message_id"
         ],
         "title": "EvidenceRef",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
         "type": "object"
       },
       "HealthResponse": {
@@ -1508,6 +1610,380 @@
           "reason"
         ],
         "title": "NotApplicableAnswer",
+        "type": "object"
+      },
+      "OperatorAssignment": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "operator_id": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "pattern": "^[\\p{L}\\p{N}][\\p{L}\\p{M}\\p{N}._-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Id"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "successful",
+                  "unsuccessful"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          }
+        },
+        "title": "OperatorAssignment",
+        "type": "object"
+      },
+      "OperatorConversation": {
+        "additionalProperties": false,
+        "properties": {
+          "channel": {
+            "enum": [
+              "agent chat",
+              "voice call"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "conversation_id": {
+            "title": "Conversation Id",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "effective_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Score"
+          },
+          "evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Id"
+          },
+          "language": {
+            "enum": [
+              "RU",
+              "KZ",
+              "EN"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "successful",
+                  "unsuccessful"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "version_id": {
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id",
+          "conversation_id",
+          "channel",
+          "language",
+          "outcome",
+          "duration_seconds",
+          "evaluation_id",
+          "effective_score"
+        ],
+        "title": "OperatorConversation",
+        "type": "object"
+      },
+      "OperatorCriterion": {
+        "additionalProperties": false,
+        "properties": {
+          "assessed_count": {
+            "title": "Assessed Count",
+            "type": "integer"
+          },
+          "average_quality": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Quality"
+          },
+          "checklist_version_id": {
+            "title": "Checklist Version Id",
+            "type": "string"
+          },
+          "criterion_id": {
+            "title": "Criterion Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checklist_version_id",
+          "criterion_id",
+          "title",
+          "assessed_count",
+          "average_quality"
+        ],
+        "title": "OperatorCriterion",
+        "type": "object"
+      },
+      "OperatorDirectory": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OperatorDirectoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "unassigned_count": {
+            "title": "Unassigned Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "unassigned_count"
+        ],
+        "title": "OperatorDirectory",
+        "type": "object"
+      },
+      "OperatorDirectoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation_count": {
+            "title": "Conversation Count",
+            "type": "integer"
+          },
+          "operator_id": {
+            "title": "Operator Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operator_id",
+          "conversation_count"
+        ],
+        "title": "OperatorDirectoryItem",
+        "type": "object"
+      },
+      "OperatorProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "average_call_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Call Seconds"
+          },
+          "average_call_span_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Call Span Seconds"
+          },
+          "average_effective_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Effective Score"
+          },
+          "average_first_reply_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average First Reply Seconds"
+          },
+          "call_count": {
+            "title": "Call Count",
+            "type": "integer"
+          },
+          "chat_count": {
+            "title": "Chat Count",
+            "type": "integer"
+          },
+          "client_messages": {
+            "title": "Client Messages",
+            "type": "integer"
+          },
+          "conversation_count": {
+            "title": "Conversation Count",
+            "type": "integer"
+          },
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/OperatorConversation"
+            },
+            "title": "Conversations",
+            "type": "array"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/OperatorCriterion"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "first_reply_count": {
+            "title": "First Reply Count",
+            "type": "integer"
+          },
+          "flagged_conversations": {
+            "title": "Flagged Conversations",
+            "type": "integer"
+          },
+          "measured_calls": {
+            "title": "Measured Calls",
+            "type": "integer"
+          },
+          "operator_id": {
+            "title": "Operator Id",
+            "type": "string"
+          },
+          "operator_messages": {
+            "title": "Operator Messages",
+            "type": "integer"
+          },
+          "scored_conversations": {
+            "title": "Scored Conversations",
+            "type": "integer"
+          },
+          "successful_calls": {
+            "title": "Successful Calls",
+            "type": "integer"
+          },
+          "timed_call_spans": {
+            "title": "Timed Call Spans",
+            "type": "integer"
+          },
+          "total_call_seconds": {
+            "title": "Total Call Seconds",
+            "type": "integer"
+          },
+          "unanswered_conversations": {
+            "title": "Unanswered Conversations",
+            "type": "integer"
+          },
+          "unknown_calls": {
+            "title": "Unknown Calls",
+            "type": "integer"
+          },
+          "unsuccessful_calls": {
+            "title": "Unsuccessful Calls",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "operator_id",
+          "conversation_count",
+          "call_count",
+          "chat_count",
+          "successful_calls",
+          "unsuccessful_calls",
+          "unknown_calls",
+          "measured_calls",
+          "total_call_seconds",
+          "average_call_seconds",
+          "timed_call_spans",
+          "average_call_span_seconds",
+          "operator_messages",
+          "client_messages",
+          "first_reply_count",
+          "unanswered_conversations",
+          "average_first_reply_seconds",
+          "scored_conversations",
+          "flagged_conversations",
+          "average_effective_score",
+          "criteria",
+          "conversations"
+        ],
+        "title": "OperatorProfile",
         "type": "object"
       },
       "ProviderCall": {
@@ -1884,6 +2360,16 @@
             "title": "Language",
             "type": "string"
           },
+          "operator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperatorAssignment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "transcript": {
             "items": {
               "$ref": "#/components/schemas/SourceMessage"
@@ -1933,11 +2419,108 @@
         ],
         "title": "SourceMessage",
         "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VersionHistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "imported_at": {
+            "format": "date-time",
+            "title": "Imported At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "imported_at"
+        ],
+        "title": "VersionHistoryItem",
+        "type": "object"
+      },
+      "VersionHistoryList": {
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VersionHistoryItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "default": 25,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "VersionHistoryList",
+        "type": "object"
       }
     }
   },
   "info": {
-    "description": "Этап 0: health и синтетическое demo реализованы. Остальные маршруты описывают согласованный контракт и возвращают HTTP 501 NOT_IMPLEMENTED.",
+    "description": "Импорт, версии, задания оценки и апелляции. Demo использует синтетику.",
     "title": "CQA API",
     "version": "0.1.0"
   },
@@ -1980,6 +2563,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2000,6 +2593,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2010,16 +2613,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2029,6 +2622,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Decide Appeal",
@@ -2064,6 +2667,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2084,6 +2697,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2094,16 +2717,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2113,6 +2726,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Get Checklist Version",
@@ -2135,6 +2758,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2155,6 +2788,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2165,16 +2808,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2184,6 +2817,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "List Checklists",
@@ -2214,6 +2857,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2234,6 +2887,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2244,16 +2907,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2263,6 +2916,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Create Checklist",
@@ -2308,6 +2971,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2328,6 +3001,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2338,16 +3021,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2357,6 +3030,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Create Checklist Version",
@@ -2392,6 +3075,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2412,6 +3105,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2422,7 +3125,7 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
+          "502": {
             "content": {
               "application/json": {
                 "schema": {
@@ -2430,7 +3133,376 @@
                 }
               }
             },
-            "description": "Contract only: workflow not implemented"
+            "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
+          }
+        },
+        "summary": "Get Conversation Version",
+        "tags": [
+          "conversations"
+        ]
+      }
+    },
+    "/api/v1/conversation-versions/{version_id}/audio": {
+      "get": {
+        "operationId": "get_audio_api_v1_conversation_versions__version_id__audio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Range",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Range"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "audio/3gpp": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/aac": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/amr": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/flac": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/mp3": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/mp4": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/mpeg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/ogg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/webm": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/x-m4a": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/x-wav": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Complete audio file"
+          },
+          "206": {
+            "content": {
+              "audio/3gpp": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/aac": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/amr": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/flac": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/mp3": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/mp4": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/mpeg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/ogg": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/webm": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/x-m4a": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "audio/x-wav": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Partial audio content"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Media origin not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version or audio not found"
+          },
+          "416": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or unavailable range"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid upstream media"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source busy or media not configured"
+          }
+        },
+        "summary": "Get Audio",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/v1/conversation-versions/{version_id}/history/evaluations": {
+      "get": {
+        "operationId": "list_evaluation_history_api_v1_conversation_versions__version_id__history_evaluations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationHistoryList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
           },
           "502": {
             "content": {
@@ -2441,11 +3513,364 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
-        "summary": "Get Conversation Version",
+        "summary": "List Evaluation History",
+        "tags": [
+          "evaluations"
+        ]
+      }
+    },
+    "/api/v1/conversation-versions/{version_id}/history/versions": {
+      "get": {
+        "operationId": "list_version_history_api_v1_conversation_versions__version_id__history_versions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionHistoryList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
+          }
+        },
+        "summary": "List Version History",
         "tags": [
           "conversations"
+        ]
+      }
+    },
+    "/api/v1/conversation-versions/{version_id}/operator": {
+      "get": {
+        "operationId": "get_assignment_api_v1_conversation_versions__version_id__operator_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorAssignment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
+          }
+        },
+        "summary": "Get Assignment",
+        "tags": [
+          "operators"
+        ]
+      },
+      "put": {
+        "operationId": "save_assignment_api_v1_conversation_versions__version_id__operator_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorAssignment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorAssignment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
+          }
+        },
+        "summary": "Save Assignment",
+        "tags": [
+          "operators"
         ]
       }
     },
@@ -2529,6 +3954,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2549,6 +3984,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2559,16 +4004,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2578,6 +4013,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "List Conversations",
@@ -2610,6 +4055,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2630,6 +4085,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2640,16 +4105,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2659,6 +4114,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Import Conversations",
@@ -2676,7 +4141,6 @@
             "name": "conversation_id",
             "required": true,
             "schema": {
-              "maxLength": 200,
               "minLength": 1,
               "title": "Conversation Id",
               "type": "string"
@@ -2693,6 +4157,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
           },
           "404": {
             "content": {
@@ -2714,6 +4188,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2724,16 +4208,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2743,6 +4217,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Get Conversation",
@@ -2775,6 +4259,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2795,6 +4289,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2805,16 +4309,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2824,6 +4318,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Import Dataset",
@@ -2847,6 +4351,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2867,6 +4381,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2877,16 +4401,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2896,6 +4410,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Demo",
@@ -2907,6 +4431,26 @@
     "/api/v1/evaluations": {
       "post": {
         "operationId": "create_evaluation_api_v1_evaluations_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "idempotency-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2928,6 +4472,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -2948,6 +4502,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2958,16 +4522,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -2977,6 +4531,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Create Evaluation",
@@ -3012,6 +4576,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3032,6 +4606,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3042,16 +4626,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -3061,6 +4635,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Get Evaluation",
@@ -3096,6 +4680,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3116,6 +4710,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3126,16 +4730,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -3145,6 +4739,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "List Appeals",
@@ -3188,6 +4792,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3208,6 +4822,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3218,7 +4842,7 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
+          "502": {
             "content": {
               "application/json": {
                 "schema": {
@@ -3226,7 +4850,88 @@
                 }
               }
             },
-            "description": "Contract only: workflow not implemented"
+            "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
+          }
+        },
+        "summary": "Create Appeal",
+        "tags": [
+          "appeals"
+        ]
+      }
+    },
+    "/api/v1/operators": {
+      "get": {
+        "operationId": "list_operators_api_v1_operators_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorDirectory"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
           },
           "502": {
             "content": {
@@ -3237,11 +4942,125 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
-        "summary": "Create Appeal",
+        "summary": "List Operators",
         "tags": [
-          "appeals"
+          "operators"
+        ]
+      }
+    },
+    "/api/v1/operators/{operator_id}/profile": {
+      "get": {
+        "operationId": "get_operator_profile_api_v1_operators__operator_id__profile_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "title": "Operator Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Entity not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Version or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
+          }
+        },
+        "summary": "Get Operator Profile",
+        "tags": [
+          "operators"
         ]
       }
     },
@@ -3259,6 +5078,16 @@
             },
             "description": "Successful Response"
           },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Browser origin or operation denied"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -3279,6 +5108,16 @@
             },
             "description": "Version or idempotency conflict"
           },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request body too large"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3289,16 +5128,6 @@
             },
             "description": "Request validation failed"
           },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Contract only: workflow not implemented"
-          },
           "502": {
             "content": {
               "application/json": {
@@ -3308,6 +5137,16 @@
               }
             },
             "description": "Upstream source or provider failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Source or workflow unavailable"
           }
         },
         "summary": "Health",

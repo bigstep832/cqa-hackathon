@@ -1,4 +1,4 @@
-name: Offline bootstrap checks
+name: Offline CQA checks
 
 on:
   push:
@@ -28,7 +28,7 @@ jobs:
           python -m venv .venv
           .venv/bin/python -m pip install -r requirements.lock
           npm ci --prefix frontend
-      - name: Domain, contracts and frontend
+      - name: Backend, submission rehearsal, contracts and frontend
         run: .venv/bin/python scripts/verify.py
       - name: Install browser
         working-directory: frontend
