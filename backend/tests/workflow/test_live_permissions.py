@@ -1,6 +1,7 @@
 """Offline tests of the API job gate using no live endpoint and no credentials."""
 
 import asyncio
+import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
@@ -22,8 +23,15 @@ from app.contracts.models import (
     EvaluationOutput,
     ProviderCall,
 )
+from app.evaluation.compact import build_compact_system_instruction, unpack_dialogue_payload
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
 from app.evaluation.factory import create_provider
+from app.evaluation.structured import (
+    CANDIDATE_INSTRUCTION,
+    SYSTEM_INSTRUCTION,
+    build_system_instruction,
+    build_user_payload,
+)
 from app.main import app
 from app.services import jobs, live_workflow
 from app.storage.conversations import import_conversations
@@ -83,6 +91,95 @@ def install_plan(tmp_path, monkeypatch):
     monkeypatch.setenv("CQA_LIVE_PLAN", str(path))
     monkeypatch.setenv("LIVE_EVAL_ENABLED", "true")
     return path
+
+
+def legacy_plan_bytes(path):
+    """Exact pre-profile LivePlan serialization, including historical default fields/order."""
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    legacy = {
+        "provider": raw["provider"], "model": raw["model"], "local_base_url": raw["local_base_url"],
+        "local_response_format": "json_schema", "data_transfer_approved": True,
+        "dataset_group_ids": raw["dataset_group_ids"], "max_cases": raw["max_cases"],
+        "max_requests": raw["max_requests"], "max_attempts": 1, "max_output_tokens": raw["max_output_tokens"],
+        "budget_usd": "0", "pricing": raw["pricing"],
+    }
+    return json.dumps(legacy, separators=(",", ":")).encode("utf-8")
+
+
+def test_baseline_profile_preserves_legacy_identity_and_consumed_limits(database, tmp_path, monkeypatch):
+    path = install_plan(tmp_path, monkeypatch)
+    legacy_id = hashlib.sha256(legacy_plan_bytes(path)).hexdigest()
+    original_id, plan = live_workflow.configured_plan()
+    assert original_id == legacy_id and plan.instruction_profile == "cqa-rubric-v1"
+    with write_transaction() as db:
+        db.execute(text("INSERT INTO live_limits(plan_id,cases,attempts) VALUES(:id,0,1)"), {"id": legacy_id})
+    queued = jobs.create_evaluation(request("live"))
+    assert get_plan_id(queued.id) == legacy_id
+    # Explicitly spelling the default after upgrade must neither revoke old jobs nor refund their cap.
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({**raw, "instruction_profile": "cqa-rubric-v1", "request_encoding": "canonical"}), encoding="utf-8")
+    assert live_workflow.configured_plan()[0] == legacy_id
+    transported = []
+
+    def receive(req):
+        transported.append(req)
+        return httpx.Response(503)
+
+    monkeypatch.setattr(live_workflow, "outbound_transport", lambda: httpx.MockTransport(receive))
+    asyncio.run(jobs.run_claimed(*jobs.claim_job()))
+    assert get_evaluation(queued.id).status == "failed" and not transported
+    with get_engine().connect() as db:
+        assert tuple(db.execute(text("SELECT plan_id,cases,attempts FROM live_limits")).one()) == (legacy_id, 1, 1)
+
+
+@pytest.mark.parametrize("profile", [None, "cqa-rubric-v1", "cqa-rubric-v4-candidate"])
+@pytest.mark.parametrize("encoding", ["canonical", "compact-v1"])
+def test_live_plan_profile_controls_sent_instruction_and_saved_provenance(database, tmp_path, monkeypatch, profile, encoding):
+    path = install_plan(tmp_path, monkeypatch)
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw.update(provider="groq", local_base_url=None)
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    monkeypatch.setenv("MODEL_API_KEY", "offline-test-key")
+    legacy_id = hashlib.sha256(legacy_plan_bytes(path)).hexdigest()
+    if profile is not None:
+        raw["instruction_profile"] = profile
+    raw["request_encoding"] = encoding
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    plan_id, plan = live_workflow.configured_plan()
+    expected_profile = profile or "cqa-rubric-v1"
+    assert (plan_id != legacy_id) == (expected_profile == "cqa-rubric-v4-candidate" or encoding == "compact-v1")
+    excluded = {"instruction_profile"} if expected_profile == "cqa-rubric-v1" else set()
+    if encoding == "canonical":
+        excluded.add("request_encoding")
+    assert plan_id == hashlib.sha256(plan.model_dump_json(exclude=excluded).encode()).hexdigest()
+    sent = []
+
+    def receive(req):
+        sent.append(json.loads(req.content))
+        answers = {item.criterion_id: {
+            "answer": item.answer.model_dump(mode="json"), "explanation": item.explanation,
+            "evidence": [e.model_dump(mode="json", exclude={"conversation_version_id"}) for e in item.evidence],
+        } for item in load_synthetic_answers()}
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+            "role": "assistant", "content": json.dumps({"answers": answers}),
+        }}]})
+
+    monkeypatch.setattr(live_workflow, "outbound_transport", lambda: httpx.MockTransport(receive))
+    queued = jobs.create_evaluation(request("live"))
+    asyncio.run(jobs.run_claimed(*jobs.claim_job()))
+    result = get_evaluation(queued.id)
+    assert result.status == "succeeded" and len(sent) == 1
+    assert get_plan_id(queued.id) == plan_id
+    assert result.output.metadata.instruction_version == expected_profile
+    case = load_synthetic_input()
+    if encoding == "compact-v1":
+        instruction = SYSTEM_INSTRUCTION if expected_profile == "cqa-rubric-v1" else CANDIDATE_INSTRUCTION
+        assert sent[0]["messages"][0]["content"] == build_compact_system_instruction(case, instruction=instruction)
+        assert unpack_dialogue_payload(json.loads(sent[0]["messages"][1]["content"])) == json.loads(build_user_payload(case))
+    else:
+        assert sent[0]["messages"][0]["content"] == build_system_instruction(case, profile=expected_profile)
+    assert result.output.metadata.pipeline_version.endswith("+cqa-compact-v1") == (encoding == "compact-v1")
+    assert len(get_calls(queued.id)) == len(get_dispatches(queued.id)) == 1
 
 
 def test_reserve_before_call_and_do_not_refund_after_failures(database, tmp_path, monkeypatch):
@@ -258,14 +355,28 @@ def test_shutdown_joins_active_worker_before_recovery(database, monkeypatch):
     assert get_evaluation(queued.id).failure.code == "WORKER_INTERRUPTED"
 
 
-def test_changed_plan_cannot_run_queued_job(database, tmp_path, monkeypatch):
+@pytest.mark.parametrize("changed", [{"model": "replacement"}, {"instruction_profile": "cqa-rubric-v4-candidate"}, {"request_encoding": "compact-v1"}])
+def test_changed_plan_cannot_run_queued_job(database, tmp_path, monkeypatch, changed):
     path = install_plan(tmp_path, monkeypatch)
+    if "request_encoding" in changed:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw.update(provider="groq", local_base_url=None)
+        path.write_text(json.dumps(raw), encoding="utf-8")
+        monkeypatch.setenv("MODEL_API_KEY", "offline-test-key")
     queued = jobs.create_evaluation(request("live"), "case")
     assert get_plan_id(queued.id) == live_workflow.configured_plan()[0]
     previous = json.loads(path.read_text(encoding="utf-8"))
-    path.write_text(json.dumps({**previous, "model": "replacement"}), encoding="utf-8")
+    path.write_text(json.dumps({**previous, **changed}), encoding="utf-8")
+    transported = []
+
+    def receive(req):
+        transported.append(req)
+        return httpx.Response(503)
+
+    monkeypatch.setattr(live_workflow, "outbound_transport", lambda: httpx.MockTransport(receive))
     asyncio.run(jobs.run_claimed(*jobs.claim_job()))
-    assert get_evaluation(queued.id).status == "failed"
+    assert get_evaluation(queued.id).status == "failed" and not transported
+    assert get_calls(queued.id) == get_dispatches(queued.id) == ()
     assert jobs.create_evaluation(request("live"), "case").id == queued.id
     with get_engine().connect() as db:
         assert not db.execute(text("SELECT * FROM live_limits")).all()

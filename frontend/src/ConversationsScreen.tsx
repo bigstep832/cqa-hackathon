@@ -4,6 +4,7 @@ import { ApiFailure } from './ApiFailure';
 import { ConversationImport } from './ConversationImport';
 import { EvaluationWorkspace } from './EvaluationWorkspace';
 import { ConversationAudio } from './ConversationAudio';
+import { AssignmentPanel } from './operators/AssignmentPanel';
 import { ConversationHistory } from './ConversationHistory';
 import { SavedEvaluation } from './SavedEvaluation';
 
@@ -11,10 +12,10 @@ type Resource<T> = { status: 'loading' } | { status: 'error'; error: unknown } |
 const pageSize = 25;
 const speakerLabels: Record<string, string> = { client: 'Клиент', operator: 'Оператор', bot: 'Бот', system: 'Система' };
 
-export function ConversationsScreen() {
+export function ConversationsScreen({ initialVersionId = null }: { initialVersionId?: string | null } = {}) {
   const [query, setQuery] = useState<ConversationQuery>({ offset: 0, limit: pageSize });
   const [revision, setRevision] = useState(0);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialVersionId);
   const [detailAttempt, setDetailAttempt] = useState(0);
   const [evaluating, setEvaluating] = useState(false);
   const [historicalVersion, setHistoricalVersion] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export function ConversationsScreen() {
         <ConversationHistory key={selected} initiallyOpen={historyOpen} anchorId={selected} currentVersionId={currentVersion}
           onVersion={setHistoricalVersion} onEvaluation={setSavedEvaluation} />
         <p className="version-context" role="status">{currentVersion === selected ? 'Открыта последняя версия из списка.' : 'Открыта историческая версия диалога.'}</p>
-        <ConversationDetail key={`${currentVersion}:${detailAttempt}`} id={currentVersion}
+        <ConversationDetail key={`${currentVersion}:${detailAttempt}`} id={currentVersion} isLatest={currentVersion === selected}
           retry={() => setDetailAttempt(value => value + 1)} onEvaluate={() => setEvaluating(true)} />
       </div>
         : <section className="panel state-panel"><h2>Выберите диалог</h2><p>Откройте запись из списка, чтобы прочитать её транскрипт.</p></section>}
@@ -109,7 +110,9 @@ function ConversationListPanel({ query, selected, onSelect, retry, onPage }: {
   </section>;
 }
 
-function ConversationDetail({ id, retry, onEvaluate }: { id: string; retry: () => void; onEvaluate: () => void }) {
+function ConversationDetail({ id, isLatest, retry, onEvaluate }: {
+  id: string; isLatest: boolean; retry: () => void; onEvaluate: () => void;
+}) {
   const [state, setState] = useState<Resource<ConversationVersion>>({ status: 'loading' });
   useEffect(() => {
     const controller = new AbortController();
@@ -143,6 +146,8 @@ function ConversationDetail({ id, retry, onEvaluate }: { id: string; retry: () =
         <ConversationAudio conversation={state.data} />
         <span className="version-label">Версия диалога: {state.data.id}</span>
       </div>
+      {isLatest ? <AssignmentPanel conversation={state.data} />
+        : <p className="muted">Данные оператора можно изменить в последней версии диалога.</p>}
     </>}
   </section>;
 }

@@ -1,0 +1,37 @@
+{
+  "dataset_group_id": "SYNTHETIC_OPERATOR_PROFILE",
+  "records": [
+    {
+      "conversation_id": "training-call-01", "channel": "voice call", "language": "RU",
+      "operator": {"operator_id": "Учебный-01", "outcome": "successful", "duration_seconds": 120},
+      "transcript": [
+        {"timestamp": "00:03", "speaker": "client", "text": "Как открыть учебную заявку?"},
+        {"timestamp": "00:09", "speaker": "operator", "text": "Выберите «Новая заявка»."},
+        {"timestamp": "00:35", "speaker": "client", "text": "Получилось, спасибо."}
+      ]
+    },
+    {
+      "conversation_id": "training-call-02", "channel": "voice call", "language": "RU",
+      "operator": {"operator_id": "Учебный-01", "outcome": "unsuccessful", "duration_seconds": 60},
+      "transcript": [
+        {"timestamp": "00:02", "speaker": "client", "text": "В учебной форме нет кнопки."},
+        {"timestamp": "00:12", "speaker": "operator", "text": "Передам вопрос специалисту."}
+      ]
+    },
+    {
+      "conversation_id": "training-call-03", "channel": "voice call", "language": "KZ",
+      "operator": {"operator_id": "Учебный-01"},
+      "transcript": [
+        {"timestamp": "00:01", "speaker": "client", "text": "Сәлеметсіз бе!"}
+      ]
+    },
+    {
+      "conversation_id": "training-chat-04", "channel": "agent chat", "language": "EN",
+      "operator": {"operator_id": "Учебный-01"},
+      "transcript": [
+        {"timestamp": "00:00", "speaker": "client", "text": "Where is the training form?"},
+        {"timestamp": "00:05", "speaker": "operator", "text": "Open the Training tab."}
+      ]
+    }
+  ]
+}

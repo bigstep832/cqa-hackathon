@@ -62,7 +62,8 @@ def prepare(
         if path.exists():
             previous = ReleaseSelection.model_validate(read_json(path))
             if (
-                previous.model_dump(exclude={"jobs"}) != selection.model_dump(exclude={"jobs"})
+                previous.model_dump(exclude={"jobs", "rationale_redactions"})
+                != selection.model_dump(exclude={"jobs", "rationale_redactions"})
                 or previous.jobs.keys() != selection.jobs.keys()
             ):
                 raise ValueError("Файл относится к другой выборке или версии импорта.")

@@ -6,6 +6,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from decimal import Decimal
+from hashlib import sha256
 
 import pytest
 
@@ -22,6 +23,7 @@ from app.services.submission import (
     validate_file,
     write_verified,
 )
+from app.services.submission_redaction import ReviewedRationaleRedaction
 
 
 def batch(dataset="prod"):
@@ -93,6 +95,23 @@ def test_critical_true_changes_only_flag(package):
     change_job(jobs, output=output, original_score=score(checklist, answers))
     row = build_submission(selection, manifest, checklist, jobs)["results"][0]
     assert row["score"] == {"final_score": 85.38, "critical_flag": True}
+
+
+def test_groq_calls_export_as_external_api_with_original_score(package):
+    selection, manifest, checklist, jobs = package
+    for key, job in list(jobs.items()):
+        call = job.calls[0].model_copy(update={"provider": "groq", "model": "openai/gpt-oss-120b"})
+        output = job.evaluation.output
+        metadata = output.metadata.model_copy(update={
+            "provider": call.provider, "model": call.model, "calls": (call,),
+        })
+        evaluation = job.evaluation.model_copy(update={"output": output.model_copy(update={"metadata": metadata})})
+        jobs[key] = replace(job, evaluation=evaluation, calls=(call,), request=job.request.model_copy(
+            update={"provider": call.provider, "model": call.model},
+        ))
+    document = build_submission(selection, manifest, checklist, jobs)
+    assert document["model"] == {"mode": "external_api", "name": "groq/openai/gpt-oss-120b"}
+    assert all(row["score"]["final_score"] == 85.38 for row in document["results"])
 
 
 @pytest.mark.parametrize("problem", ["custom-weight", "wrong-snapshot", "manual", "synthetic", "duplicate",
@@ -222,6 +241,7 @@ def test_official_team_name_is_exact(package, name):
 @pytest.mark.parametrize("text", ["Contact person@example.test", "Call +7 (700) 111 22 33",
                                   "https://example.test/private-path", "token=private",
                                   "github_pat_" + "x" * 60,
+                                  "gsk_" + "invented" * 8,
                                   "Bearer\r\n\tprivate-token", "Call +7\n(700)\t111 22 33"])
 def test_sensitive_rationale_stops_before_writing(package, text):
     selection, manifest, checklist, jobs = package
@@ -325,3 +345,94 @@ def test_rehearsal_cli_and_atomic_rejection(tmp_path, monkeypatch):
         write_verified(path, {})
     assert path.read_text() == "previous verified result"
     assert list(tmp_path.iterdir()) == [path]
+
+
+def reviewed_selection(package):
+    selection, manifest, checklist, jobs = package
+    # Invented name, with an astral character before it to test Unicode code-point offsets.
+    original = "👋 Оператор представился: УчебноеИмя. Контакт установлен."
+    output = jobs["fixture-job-0"].evaluation.output
+    answers = (output.answers[0].model_copy(update={"explanation": original}), *output.answers[1:])
+    change_job(jobs, output=output.model_copy(update={"answers": answers}))
+    start = original.index("УчебноеИмя")
+    review = ReviewedRationaleRedaction.model_validate({
+        "evaluation_id": "fixture-job-0", "criterion_id": "C01",
+        "original_sha256": sha256(original.encode("utf-8")).hexdigest(),
+        "reviewed_by": "Codex, review authorized by A", "reason": "personal_data",
+        "spans": [{"start": start, "end": start + len("УчебноеИмя")}],
+    })
+    return selection.model_copy(update={"rationale_redactions": (review,)}), manifest, checklist, jobs
+
+
+def test_reviewed_redaction_changes_only_public_rationale(package, tmp_path):
+    selection, manifest, checklist, jobs = reviewed_selection(package)
+    original = jobs["fixture-job-0"].evaluation.model_dump_json()
+    before = build_submission(selection.model_copy(update={"rationale_redactions": ()}), manifest, checklist, jobs)
+    after = build_submission(selection, manifest, checklist, jobs)
+    before["results"][0]["criteria"][0]["rationale"] = "👋 Оператор представился: [данные скрыты]. Контакт установлен."
+    assert before == after  # Score, values, evidence, model and every other public field are exact.
+    path = tmp_path / "results.json"
+    write_verified(path, after)
+    validate_file(path, build_submission(selection, manifest, checklist, jobs))
+    assert jobs["fixture-job-0"].evaluation.model_dump_json() == original
+    assert "УчебноеИмя" not in path.read_text(encoding="utf-8")
+    assert "reviewed_by" not in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("problem", [
+    "foreign-job", "wrong-criterion", "stale-hash", "duplicate", "out-of-bounds", "whitespace",
+    "whole-explanation", "overlap", "unsorted", "boolean-offset", "replacement-text", "score-edit",
+    "empty-reviewer", "foreign-snapshot", "pending-at-cutoff", "failed-job", "empty-spans",
+    "negative-offset", "reversed-span", "float-offset", "unknown-criterion",
+])
+def test_invalid_review_cannot_rewrite_public_results(package, problem):
+    selection, manifest, checklist, jobs = reviewed_selection(package)
+    raw = selection.model_dump(mode="json")
+    review = raw["rationale_redactions"][0]
+    original = jobs["fixture-job-0"].evaluation.output.answers[0].explanation
+    cutoff = None
+    if problem == "foreign-job":
+        review["evaluation_id"] = "unselected"
+    elif problem == "wrong-criterion":
+        review["criterion_id"] = "C02"
+    elif problem == "stale-hash":
+        review["original_sha256"] = "0" * 64
+    elif problem == "duplicate":
+        raw["rationale_redactions"].append(review)
+    elif problem == "out-of-bounds":
+        review["spans"][0]["end"] = len(original) + 1
+    elif problem == "whitespace":
+        review["spans"] = [{"start": 1, "end": 2}]
+    elif problem == "whole-explanation":
+        review["spans"] = [{"start": 0, "end": len(original)}]
+    elif problem == "overlap":
+        review["spans"].append(dict(review["spans"][0]))
+    elif problem == "unsorted":
+        review["spans"].append({"start": 2, "end": 3})
+    elif problem == "boolean-offset":
+        review["spans"][0]["start"] = True
+    elif problem == "replacement-text":
+        review["replacement"] = "Действие выполнено правильно."
+    elif problem == "score-edit":
+        review["value"] = False
+    elif problem == "empty-reviewer":
+        review["reviewed_by"] = " "
+    elif problem == "empty-spans":
+        review["spans"] = []
+    elif problem == "negative-offset":
+        review["spans"][0]["start"] = -1
+    elif problem == "reversed-span":
+        review["spans"][0]["end"] = review["spans"][0]["start"]
+    elif problem == "float-offset":
+        review["spans"][0]["start"] = 2.5
+    elif problem == "unknown-criterion":
+        review["criterion_id"] = "C09"
+    elif problem == "foreign-snapshot":
+        change_job(jobs, conversation_version_id="unselected-version")
+    elif problem == "pending-at-cutoff":
+        cutoff = {"fixture-job-0": ()}
+    else:
+        change_job(jobs, status="failed", output=None, original_score=None,
+                   failure=ErrorDetail(code="TIMEOUT", message="Synthetic error"))
+    with pytest.raises(ValueError):
+        build_submission(ReleaseSelection.model_validate(raw), manifest, checklist, jobs, cutoff=cutoff)

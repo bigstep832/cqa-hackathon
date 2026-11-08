@@ -38,8 +38,10 @@ from app.services.submission import (  # noqa: E402
     selection_lock,
     submission_lock,
     validate_file,
+    validated_rationale_reviews,
     write_verified,
 )
+from app.services.submission_redaction import ReviewedRationaleRedaction  # noqa: E402
 from app.storage.workflow import DispatchAttempt  # noqa: E402
 
 
@@ -48,18 +50,30 @@ def release_cutoff(
     capture: bool, require: bool,
 ) -> dict[str, tuple[ProviderCall | DispatchAttempt, ...]] | None:
     codec = TypeAdapter(dict[str, tuple[ProviderCall | DispatchAttempt, ...]])
-    fingerprint = stable_hash(selection.model_dump(mode="json"))
+    # Privacy review must never change the identity of the frozen job cutoff.
+    # Excluding the new optional field also preserves historical selection hashes.
+    fingerprint = stable_hash(selection.model_dump(mode="json", exclude={"rationale_redactions"}))
+    review_hash = stable_hash([r.model_dump(mode="json") for r in selection.rationale_redactions])
     if capture:
         db.exec_driver_sql("""CREATE TABLE IF NOT EXISTS submission_cutoffs (
-            selection_hash TEXT PRIMARY KEY, recorded_at TEXT NOT NULL, pending_calls TEXT NOT NULL)""")
+            selection_hash TEXT PRIMARY KEY, recorded_at TEXT NOT NULL, pending_calls TEXT NOT NULL,
+            rationale_review_hash TEXT)""")
+        columns = {row.name for row in db.exec_driver_sql("PRAGMA table_info(submission_cutoffs)")}
+        if "rationale_review_hash" not in columns:
+            db.exec_driver_sql("ALTER TABLE submission_cutoffs ADD COLUMN rationale_review_hash TEXT")
     table = db.exec_driver_sql(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='submission_cutoffs'"
     ).scalar_one_or_none()
     if table:
-        saved = db.execute(text("SELECT pending_calls FROM submission_cutoffs WHERE selection_hash=:hash"),
-                           {"hash": fingerprint}).scalar_one_or_none()
+        columns = {row.name for row in db.exec_driver_sql("PRAGMA table_info(submission_cutoffs)")}
+        review_column = "rationale_review_hash" if "rationale_review_hash" in columns else "NULL"
+        saved = db.execute(text(f"SELECT pending_calls,{review_column} FROM submission_cutoffs WHERE selection_hash=:hash"),
+                           {"hash": fingerprint}).one_or_none()
         if saved is not None:
-            return codec.validate_json(saved)
+            saved_calls, saved_review = saved
+            if (saved_review or stable_hash([])) != review_hash:
+                raise SubmissionError("Rationale review changed after finalization; frozen jobs must not be reopened.")
+            return codec.validate_json(saved_calls)
     if not capture:
         if require:
             raise SubmissionError("No recorded cutoff for this exact selection.")
@@ -70,9 +84,10 @@ def release_cutoff(
         key: (*item.calls, *item.dispatches) for key, item in jobs.items()
         if item.evaluation.status in {"queued", "running"}
     }
-    db.execute(text("""INSERT INTO submission_cutoffs(selection_hash,recorded_at,pending_calls)
-                    VALUES(:hash,:at,:calls)"""),
+    db.execute(text("""INSERT INTO submission_cutoffs(selection_hash,recorded_at,pending_calls,rationale_review_hash)
+                    VALUES(:hash,:at,:calls,:review)"""),
                {"hash": fingerprint, "at": datetime.now(UTC).isoformat(),
+                "review": review_hash,
                 "calls": codec.dump_json(pending).decode()})
     return pending
 
@@ -89,10 +104,52 @@ def release(action: str, selection_file: Path, final: bool) -> None:
             release_selection(action, selection, final)
 
 
+def selected_jobs(db: Connection, selection: ReleaseSelection) -> dict[str, SelectedJob]:
+    from app.storage.workflow import calls_snapshot, dispatches_snapshot
+
+    jobs = {}
+    for job_id in selection.jobs.values():
+        if job_id is None:
+            continue
+        row = db.execute(text("SELECT snapshot,request,calls,plan_id FROM evaluations WHERE id=:id"),
+                         {"id": job_id}).one_or_none()
+        if row is None:
+            raise SubmissionError("A selected job does not exist.")
+        jobs[job_id] = SelectedJob(Evaluation.model_validate_json(row.snapshot),
+                                   EvaluationCreateRequest.model_validate_json(row.request),
+                                   calls_snapshot(db, job_id, row.calls), row.plan_id,
+                                   dispatches_snapshot(db, job_id))
+    return jobs
+
+
+def review_rationales(selection_file: Path, reviews_file: Path) -> None:
+    """Apply an explicit private review atomically; no AI call or stored-answer edit."""
+    from scripts.prepare_batch import save_selection
+
+    from app.storage.database import get_engine
+
+    selection_file, reviews_file = selection_file.resolve(), reviews_file.resolve()
+    if any(not p.is_relative_to(ROOT / "artifacts/private") or p.suffix != ".json"
+           for p in (selection_file, reviews_file)):
+        raise SubmissionError("Keep selection and rationale reviews inside artifacts/private.")
+    reviews = TypeAdapter(tuple[ReviewedRationaleRedaction, ...]).validate_python(read_json(reviews_file))
+    with selection_lock(selection_file):
+        selection = ReleaseSelection.model_validate(read_json(selection_file))
+        updated = selection.model_copy(update={"rationale_redactions": reviews})
+        lock_path = ROOT / "artifacts/private" / f"{selection.dataset}-publication.lock"
+        with submission_lock(lock_path, "dataset"):
+            with get_engine().connect() as db:
+                db.exec_driver_sql("BEGIN")
+                cutoff = release_cutoff(db, updated, {}, capture=False, require=False)
+                validated_rationale_reviews(updated, selected_jobs(db, updated), cutoff)
+            save_selection(selection_file, updated)
+    print(f"Saved {len(reviews)} reviewed rationale redactions; stored AI answers are unchanged.")
+
+
 def release_selection(action: str, selection: ReleaseSelection, final: bool) -> None:
     from app.storage.conversations import group_versions_snapshot, initialize_conversations
     from app.storage.database import get_engine, write_transaction
-    from app.storage.workflow import calls_snapshot, checklist_snapshot, dispatches_snapshot
+    from app.storage.workflow import checklist_snapshot
 
     initialize_conversations()
     capture = action == "export" and final
@@ -101,18 +158,7 @@ def release_selection(action: str, selection: ReleaseSelection, final: bool) -> 
             db.exec_driver_sql("BEGIN")  # Pin one SQLite snapshot for all release inputs.
         manifest = group_versions_snapshot(db, selection.group_id)
         checklist = checklist_snapshot(db, OFFICIAL_ID)
-        jobs = {}
-        for job_id in selection.jobs.values():
-            if job_id is None:
-                continue
-            row = db.execute(text("SELECT snapshot,request,calls,plan_id FROM evaluations WHERE id=:id"),
-                             {"id": job_id}).one_or_none()
-            if row is None:
-                raise SubmissionError("A selected job does not exist.")
-            jobs[job_id] = SelectedJob(Evaluation.model_validate_json(row.snapshot),
-                                       EvaluationCreateRequest.model_validate_json(row.request),
-                                       calls_snapshot(db, job_id, row.calls), row.plan_id,
-                                       dispatches_snapshot(db, job_id))
+        jobs = selected_jobs(db, selection)
         cutoff = release_cutoff(db, selection, jobs, capture=capture, require=final)
         document = build_submission(selection, manifest, checklist, jobs, cutoff=cutoff)
     path = ROOT / "results" / selection.dataset / "results.json"
@@ -168,6 +214,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="action", required=True)
     commands.add_parser("rehearse", help="Write only an ignored synthetic rehearsal.")
+    review = commands.add_parser("review-rationales", help="Apply explicit private redaction spans offline.")
+    review.add_argument("--selection", type=Path, required=True)
+    review.add_argument("--reviews", type=Path, required=True, help="Full reviewed redaction list, private JSON.")
     for action in ("export", "validate"):
         sub = commands.add_parser(action)
         sub.add_argument("--selection", type=Path, required=True, help="Private group and pinned job map.")
@@ -178,6 +227,9 @@ def main() -> int:
         load_dotenv(ROOT / ".env", override=False)
         if args.action == "rehearse":
             asyncio.run(rehearse())
+        elif args.action == "review-rationales":
+            os.chdir(ROOT)
+            review_rationales(args.selection, args.reviews)
         else:
             selection_file = args.selection.resolve()
             os.chdir(ROOT)  # Keep relative SQLite URLs aligned with the backend launcher.

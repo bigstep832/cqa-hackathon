@@ -71,9 +71,9 @@ def test_openapi_describes_success_requests_and_consistent_errors(client: TestCl
         operation
         for path in schema["paths"].values()
         for method, operation in path.items()
-        if method in {"get", "post"} and "media" not in operation.get("tags", [])
+        if method in {"get", "post", "put"} and "media" not in operation.get("tags", [])
     ]
-    assert len(operations) == 18
+    assert len(operations) == 22
     for operation in operations:
         responses = operation["responses"]
         success = [value for code, value in responses.items() if code.startswith("2")]
@@ -84,8 +84,9 @@ def test_openapi_describes_success_requests_and_consistent_errors(client: TestCl
                 "/ErrorResponse"
             )
     for path, spec in schema["paths"].items():
-        if "post" in spec:
-            assert spec["post"]["requestBody"]["required"], path
+        for method in ("post", "put"):
+            if method in spec:
+                assert spec[method]["requestBody"]["required"], path
 
 
 @pytest.mark.parametrize("query", ["limit=0", "limit=101", "offset=-1", "language=XX"])

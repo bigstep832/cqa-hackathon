@@ -1,9 +1,10 @@
-"""Explicit OpenAI Chat Completions or loopback-compatible provider.
+"""Explicit OpenAI, Groq, or loopback-compatible provider.
 
 No key discovery, network call on construction, redirects, tools, or mock fallback.
 The configured model/server must support the selected response format. Local JSON
 mode is explicit and always receives the same schema plus strict server validation.
 API reference: https://developers.openai.com/api/docs/guides/structured-outputs
+Groq: https://console.groq.com/docs/structured-outputs
 """
 
 from __future__ import annotations
@@ -20,25 +21,37 @@ from urllib.parse import urlsplit
 import httpx
 
 from app.contracts.models import EvaluationInput, EvaluationMetadata, EvaluationOutput, ProviderCall
+from app.evaluation.compact import (
+    COMPACT_WIRE_VERSION,
+    RequestEncoding,
+    build_compact_response_schema,
+    build_compact_system_instruction,
+    build_compact_user_payload,
+)
 from app.evaluation.provider import ProviderExecutionError
 from app.evaluation.structured import (
-    INSTRUCTION_VERSION,
+    CANDIDATE_INSTRUCTION,
+    SYSTEM_INSTRUCTION,
+    InstructionProfile,
     StructuredOutputError,
     build_response_schema,
     build_system_instruction,
     build_user_payload,
+    instruction_version,
     parse_model_response,
     validate_evaluation_input,
 )
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"
+GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 PIPELINE_VERSION = "openai-compatible-v1"
+GROQ_PIPELINE_VERSION = "groq-chat-v1"
 _RETRYABLE_STATUS = {408, 429, 500, 502, 503, 504}
 
 
 @dataclass(frozen=True, kw_only=True)
 class OpenAICompatibleConfig:
-    provider: Literal["openai", "local"] = "openai"
+    provider: Literal["openai", "groq", "local"] = "openai"
     api_key: str | None = field(default=None, repr=False)
     base_url: str | None = None
     response_format: Literal["json_schema", "json_object"] = "json_schema"
@@ -47,9 +60,16 @@ class OpenAICompatibleConfig:
     max_input_bytes: int = 200_000
     max_response_bytes: int = 2_000_000
     retry_delay_seconds: float = 0.25
+    instruction_profile: InstructionProfile = "cqa-rubric-v1"
+    request_encoding: RequestEncoding = "canonical"
 
     def __post_init__(self) -> None:
-        if self.provider not in {"openai", "local"}:
+        instruction_version(self.instruction_profile)
+        if self.request_encoding not in ("canonical", "compact-v1"):
+            raise ValueError("Unknown request encoding")
+        if self.request_encoding == "compact-v1" and self.provider not in {"openai", "groq"}:
+            raise ValueError("Compact encoding is supported only for OpenAI and Groq")
+        if self.provider not in {"openai", "groq", "local"}:
             raise ValueError("Unsupported provider")
         if type(self.max_attempts) is not int or not 1 <= self.max_attempts <= 3:
             raise ValueError("max_attempts must be an integer from 1 to 3")
@@ -72,13 +92,14 @@ class OpenAICompatibleConfig:
             or any(character.isspace() for character in self.api_key)
         ):
             raise ValueError("API key must be a nonempty ASCII token without whitespace")
-        if self.provider == "openai":
+        if self.provider in {"openai", "groq"}:
+            label = "OpenAI" if self.provider == "openai" else "Groq"
             if self.api_key is None:
-                raise ValueError("An explicit OpenAI API key is required")
+                raise ValueError(f"An explicit {label} API key is required")
             if self.base_url is not None:
-                raise ValueError("OpenAI uses a fixed endpoint; base_url is local-only")
+                raise ValueError(f"{label} uses a fixed endpoint; base_url is local-only")
             if self.response_format != "json_schema":
-                raise ValueError("OpenAI requires a model supporting strict JSON Schema")
+                raise ValueError(f"{label} requires a model supporting strict JSON Schema")
         else:
             _local_base_url(self.base_url)
 
@@ -158,14 +179,27 @@ class OpenAICompatibleEvaluationProvider:
         self._client = client
         self._on_attempt = on_attempt
         self._on_call = on_call
-        base_url = OPENAI_BASE_URL if config.provider == "openai" else _local_base_url(config.base_url)
+        if config.provider == "openai":
+            base_url = OPENAI_BASE_URL
+        elif config.provider == "groq":
+            base_url = GROQ_BASE_URL
+        else:
+            base_url = _local_base_url(config.base_url)
         self._endpoint = base_url + "/chat/completions"
 
     async def evaluate(self, evaluation_input: EvaluationInput) -> EvaluationOutput:
         try:
             validated = validate_evaluation_input(evaluation_input, self.config.provider)
             schema = build_response_schema(validated.checklist)
-            instruction = build_system_instruction(validated)
+            instruction = build_system_instruction(validated, profile=self.config.instruction_profile)
+            user_payload = build_user_payload(validated)
+            if self.config.request_encoding == "compact-v1":
+                schema = build_compact_response_schema(validated.checklist)
+                instruction = build_compact_system_instruction(
+                    validated, instruction=(SYSTEM_INSTRUCTION
+                        if self.config.instruction_profile == "cqa-rubric-v1" else CANDIDATE_INSTRUCTION),
+                )
+                user_payload = build_compact_user_payload(validated)
             if self.config.response_format == "json_object":
                 instruction += "\nReturn a JSON object satisfying this schema:\n" + json.dumps(
                     schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False
@@ -179,20 +213,27 @@ class OpenAICompatibleEvaluationProvider:
                 "model": validated.settings.model,
                 "messages": [
                     {"role": "system", "content": instruction},
-                    {"role": "user", "content": build_user_payload(validated)},
+                    {"role": "user", "content": user_payload},
                 ],
                 "response_format": response_format,
                 "stream": False,
                 "n": 1,
             }
-            # The OpenAI parameter includes hidden reasoning tokens. Local endpoints
+            # The cloud parameter includes hidden reasoning tokens. Local endpoints
             # use the common legacy compatible parameter; no silent parameter retry.
             token_parameter = (
-                "max_completion_tokens" if self.config.provider == "openai" else "max_tokens"
+                "max_tokens" if self.config.provider == "local" else "max_completion_tokens"
             )
             payload[token_parameter] = self.config.max_output_tokens
             if self.config.provider == "openai":
                 payload["store"] = False
+            elif self.config.provider == "groq" and validated.settings.model in {
+                "openai/gpt-oss-120b", "openai/gpt-oss-20b",
+            }:
+                # GPT-OSS uses these parameters, not reasoning_format. Keep hidden
+                # reasoning out of the response; explanations remain in the schema.
+                payload["reasoning_effort"] = "medium"
+                payload["include_reasoning"] = False
             encoded = json.dumps(
                 payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False
             ).encode("utf-8")
@@ -249,9 +290,13 @@ class OpenAICompatibleEvaluationProvider:
                 assert response is not None
                 try:
                     text = _response_text(response)
+                    pipeline = GROQ_PIPELINE_VERSION if self.config.provider == "groq" else PIPELINE_VERSION
+                    if self.config.request_encoding == "compact-v1":
+                        pipeline += "+" + COMPACT_WIRE_VERSION
                     metadata = EvaluationMetadata(
                         mode="live", provider=self.config.provider, model=evaluation_input.settings.model,
-                        instruction_version=INSTRUCTION_VERSION, pipeline_version=PIPELINE_VERSION,
+                        instruction_version=instruction_version(self.config.instruction_profile),
+                        pipeline_version=pipeline,
                         calls=tuple(calls),
                     )
                     return parse_model_response(text, evaluation_input, metadata)

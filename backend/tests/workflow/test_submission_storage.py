@@ -8,6 +8,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import date
+from hashlib import sha256
 from pathlib import Path
 from threading import Event
 from time import monotonic, sleep
@@ -16,13 +17,130 @@ import httpx
 import pytest
 from scripts import prepare_batch
 from scripts import submission as cli
+from sqlalchemy import text
 
 from app.contracts.models import ConversationImportRequest
+from app.domain.snapshots import stable_hash
+from app.evaluation.demo import load_synthetic_answers
 from app.services import jobs, live_workflow
-from app.services.submission import ReleaseSelection, SubmissionError, read_json
+from app.services.submission import (
+    ReleaseSelection,
+    SubmissionError,
+    read_json,
+    selection_lock,
+    submission_lock,
+)
 from app.storage.conversations import import_conversations
 from app.storage.database import get_engine, write_transaction
 from app.storage.workflow import get_calls, get_dispatches, get_evaluation, initialize_workflow
+
+
+def test_reviewed_name_redaction_keeps_sqlite_original_and_frozen_export(tmp_path, monkeypatch):
+    selection_file, path, selected = prepare_release(tmp_path, monkeypatch)
+    original = "Оператор представился как УчебноеИмя и установил контакт."
+    replies = []
+
+    def complete(request):
+        answers = {
+            item.criterion_id: {
+                "answer": item.answer.model_dump(mode="json"),
+                "explanation": original if not replies and item.criterion_id == "C01" else item.explanation,
+                "evidence": [{"start_message_id": "m1", "end_message_id": "m1"}],
+            } for item in load_synthetic_answers()
+        }
+        replies.append(request.url.path)
+        return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+            "role": "assistant", "content": json.dumps({"answers": answers}),
+        }}]})
+
+    async def consume(count):
+        for _ in range(count):
+            await jobs.run_claimed(*jobs.claim_job())
+
+    monkeypatch.setattr(live_workflow, "outbound_transport", lambda: httpx.MockTransport(complete))
+    try:
+        asyncio.run(consume(1))
+        job_id = next(iter(selected.jobs.values()))
+        evaluated = get_evaluation(job_id)
+        assert evaluated.status == "succeeded"
+        assert evaluated.output.answers[0].explanation == original
+        original_snapshot = evaluated.model_dump_json()
+        start = original.index("УчебноеИмя")
+        review = {"evaluation_id": job_id, "criterion_id": "C01",
+                  "original_sha256": sha256(original.encode("utf-8")).hexdigest(),
+                  "reviewed_by": "Codex, review authorized by A", "reason": "personal_data",
+                  "spans": [{"start": start, "end": start + len("УчебноеИмя")}]}
+        reviews_file = selection_file.with_name("reviews.json")
+        before_review = selection_file.read_bytes()
+        for invalid in ([{**review, "original_sha256": "0" * 64}],
+                        [{**review, "evaluation_id": "foreign-job"}], [review, review]):
+            reviews_file.write_text(json.dumps(invalid), encoding="utf-8")
+            with pytest.raises(SubmissionError):
+                cli.review_rationales(selection_file, reviews_file)
+            assert selection_file.read_bytes() == before_review
+        reviews_file.write_text(json.dumps([review]), encoding="utf-8")
+        with selection_lock(selection_file), pytest.raises(SubmissionError, match="lock this selection"):
+            cli.review_rationales(selection_file, reviews_file)
+        with submission_lock(selection_file.with_name("prod-publication.lock"), "dataset"):
+            with pytest.raises(SubmissionError, match="lock this dataset"):
+                cli.review_rationales(selection_file, reviews_file)
+        assert selection_file.read_bytes() == before_review
+        # A review may be installed while other selected jobs are still pending.
+        cli.review_rationales(selection_file, reviews_file)
+        reviewed = selection_file.read_bytes()
+        assert prepare_batch.prepare(selection_file, "prod", "TEST", "DT20", enqueue=True) == 10
+        assert selection_file.read_bytes() == reviewed
+        asyncio.run(consume(8))
+        cli.release("export", selection_file, True)
+        exported = read_json(path)
+        row = exported["results"][0]
+        assert row["criteria"][0]["rationale"] == "Оператор представился как [данные скрыты] и установил контакт."
+        assert row["score"]["final_score"] == evaluated.original_score.total
+        assert row["criteria"][0]["value"] == evaluated.output.answers[0].answer.value
+        assert row["criteria"][0]["evidence_turns"] == [1]
+        assert "УчебноеИмя" not in path.read_text(encoding="utf-8")
+        assert get_evaluation(job_id).model_dump_json() == original_snapshot
+        frozen = path.read_bytes()
+        asyncio.run(consume(1))  # A late success must stay frozen as an error.
+        cli.release("validate", selection_file, False)
+        cli.release("export", selection_file, True)
+        assert path.read_bytes() == frozen
+        cli.review_rationales(selection_file, reviews_file)  # Identical review remains idempotent.
+        reviews_file.write_text("[]", encoding="utf-8")
+        with pytest.raises(SubmissionError, match="changed after finalization"):
+            cli.review_rationales(selection_file, reviews_file)
+        assert selection_file.read_bytes() == reviewed and path.read_bytes() == frozen
+        # Even manually changing the manifest cannot bypass its saved review hash.
+        raw = read_json(selection_file)
+        raw["rationale_redactions"] = []
+        selection_file.write_text(json.dumps(raw), encoding="utf-8")
+        for action in ("export", "validate"):
+            with pytest.raises(SubmissionError, match="changed after finalization"):
+                cli.release(action, selection_file, False)
+        assert path.read_bytes() == frozen
+    finally:
+        get_engine().dispose()
+
+
+def test_legacy_cutoff_hash_survives_redaction_schema_upgrade(tmp_path, monkeypatch):
+    _, _, selected = prepare_release(tmp_path, monkeypatch)
+    fingerprint = stable_hash(selected.model_dump(mode="json", exclude={"rationale_redactions"}))
+    pending = {next(iter(selected.jobs.values())): ()}
+    encoded = json.dumps(pending)
+    try:
+        with write_transaction() as db:
+            db.exec_driver_sql("CREATE TABLE submission_cutoffs (selection_hash TEXT PRIMARY KEY, "
+                               "recorded_at TEXT NOT NULL, pending_calls TEXT NOT NULL)")
+            db.execute(text("INSERT INTO submission_cutoffs VALUES (:hash,'synthetic-time',:calls)"),
+                       {"hash": fingerprint, "calls": encoded})
+        with get_engine().connect() as db:
+            assert cli.release_cutoff(db, selected, {}, capture=False, require=True) == pending
+        with write_transaction() as db:
+            assert cli.release_cutoff(db, selected, {}, capture=True, require=True) == pending
+            assert db.exec_driver_sql("SELECT COUNT(*) FROM submission_cutoffs").scalar_one() == 1
+            assert "rationale_review_hash" in {r.name for r in db.exec_driver_sql("PRAGMA table_info(submission_cutoffs)")}
+    finally:
+        get_engine().dispose()
 
 
 def prepare_release(tmp_path, monkeypatch, attempts=1):

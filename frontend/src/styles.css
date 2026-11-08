@@ -193,6 +193,24 @@ button.nav-link--active { background: var(--brand-wash); border-color: var(--gre
 .evaluation-status--succeeded { color: var(--green); background: var(--green-soft); }
 .evaluation-run > .secondary-button { margin-top: 20px; }
 
+.operator-workspace { display: grid; gap: 20px; min-width: 0; }
+.operator-grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); }
+.operator-panel, .operator-assignment { padding: 20px 24px; overflow-wrap: anywhere; }
+.operator-assignment { border-top: 1px solid var(--line); }
+.operator-panel > p, .operator-panel > h4 { margin-top: 12px; }
+.operator-picker { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
+.operator-picker > div, .operator-form label { display: grid; gap: 6px; min-width: 0; }
+.operator-picker select { max-width: 100%; }
+.operator-metrics { margin: 16px 0 0; }
+.operator-metrics > div { display: flex; align-items: baseline; gap: 12px; justify-content: space-between; border-top: 1px solid var(--line); padding: 10px 0; }
+.operator-metrics dt, .operator-rows span { color: var(--muted); font-size: 14px; }
+.operator-metrics dd { margin: 0; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.operator-rows { list-style: none; padding: 0; margin: 12px 0 0; }
+.operator-rows li { display: grid; gap: 5px; justify-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
+.operator-open { padding: 4px 0; border: 0; background: none; text-align: left; text-decoration: underline; font-weight: 600; overflow-wrap: anywhere; }
+.operator-form { margin-top: 16px; }
+.operator-form fieldset { display: grid; gap: 12px; min-width: 0; margin: 12px 0; padding: 0; border: 0; }
+.operator-form .primary-button { justify-self: start; margin: 0; }
 /* Checklist catalogue and immutable version editor */
 .checklist-toolbar, .editor-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
 .checklist-toolbar .primary-button, .editor-actions .primary-button { margin-top: 0; }
