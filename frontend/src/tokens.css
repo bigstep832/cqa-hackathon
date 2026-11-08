@@ -1,22 +1,49 @@
 :root {
   color-scheme: light;
-  --canvas: #f3f6f5;
-  --surface: #ffffff;
-  --surface-tint: #f8fbf9;
-  --ink: #20332c;
-  --muted: #617269;
-  --line: #dde5e0;
-  --control-border: #84978d;
-  --green: #145a46;
-  --green-hover: #104735;
-  --green-soft: #edf5f0;
-  --green-line: #c5dbcf;
-  --amber: #896414;
-  --amber-soft: #fcf7e9;
-  --amber-line: #e8d8ac;
-  --danger: #a2312c;
-  --danger-soft: #fff3f1;
-  --focus: #307bca;
-  --radius: 12px;
-  --radius-sm: 7px;
+
+  /* Brand primitives observed on fbroker.kz; system fonts keep the app offline. */
+  --brand-violet: #7d8dee;
+  --brand-mint: #1ccc9e;
+  --brand-lime: #1ae276;
+  --brand-green: #00b323;
+  --neutral-950: #202124;
+  --neutral-800: #323335;
+  --neutral-600: #596575;
+  --neutral-300: #dce3eb;
+  --neutral-100: #f3f8ff;
+  --white: #ffffff;
+  --font-body: 'Segoe UI Variable Text', 'Segoe UI', Arial, sans-serif;
+  --font-heading: 'Segoe UI Variable Display', 'Segoe UI', Arial, sans-serif;
+
+  /* Semantic colors: darker green is reserved for legible text and evidence. */
+  --canvas: var(--neutral-100);
+  --surface: var(--white);
+  --surface-tint: #f8fbfe;
+  --ink: var(--neutral-800);
+  --heading: var(--neutral-950);
+  --muted: var(--neutral-600);
+  --line: var(--neutral-300);
+  --control-border: #8593a3;
+  --green: #08783d;
+  --green-hover: #056331;
+  --green-soft: #edfaf2;
+  --green-line: #b5dfc6;
+  --amber: #805b0b;
+  --amber-soft: #fff8e8;
+  --amber-line: #e8d7a8;
+  --danger: #ab302d;
+  --danger-soft: #fff2f1;
+  --focus: #315ac6;
+  --brand-gradient: linear-gradient(91deg, var(--brand-violet) -1.79%, var(--brand-mint) 25.51%, var(--brand-lime) 82.98%);
+  --brand-wash: linear-gradient(110deg, #eff1ff, #eafaf6 58%, #edfcf1);
+  --canvas-glow: radial-gradient(ellipse at 100% 0, #e6faef 0, transparent 42%);
+  --radius: 20px;
+  --radius-sm: 12px;
+  --shadow-panel: 0 3px 18px #243d5c06;
+
+  /* Component tokens: brand CTA always has dark, contrasting text. */
+  --button-primary-bg: var(--brand-gradient);
+  --button-primary-text: var(--neutral-950);
+  --button-radius: 16px;
+  --card-shadow: var(--shadow-panel);
 }
