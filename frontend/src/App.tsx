@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { fetchDemo, type DemoPayload } from './api/demo';
 import { ReviewWorkspace } from './ReviewWorkspace';
 import { ConversationsScreen } from './ConversationsScreen';
@@ -37,9 +37,11 @@ function NavIcon({ name }: { name: keyof typeof viewDescriptions }) {
 }
 
 function Mark({ small = false }: { small?: boolean }) {
+  const gradientId = useId();
   return <svg className={small ? 'brand-mark brand-mark--small' : 'brand-mark'} viewBox="0 0 32 32" aria-hidden="true">
-    <path d="M6 5h20v17H14l-8 6V5Z" fill="currentColor" />
-    <path d="m11 13 4 4 7-8" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <defs><linearGradient id={gradientId} x1="0" x2="1" y1="0" y2="1"><stop stopColor="var(--brand-mint)" /><stop offset="1" stopColor="var(--brand-lime)" /></linearGradient></defs>
+    <path d="M6 5h20v17H14l-8 6V5Z" fill={`url(#${gradientId})`} />
+    <path d="m11 13 4 4 7-8" fill="none" stroke="var(--heading)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>;
 }
 
@@ -90,7 +92,7 @@ export function App() {
     </aside>
     <main id="main" className="main" tabIndex={-1}>
       <header className="page-header"><div><p className="breadcrumb">Рабочее пространство / {view === 'demo' ? 'Тестовый пример' : viewTitles[view]}</p>
-        <h1>{viewTitles[view]}</h1><p className="page-description">{viewDescriptions[view]}</p></div></header>
+        <h1>{viewTitles[view]}</h1><p className="page-description">{viewDescriptions[view]}</p></div><span className="page-context"><NavIcon name={view} />DT20 · CQA</span></header>
       {view === 'demo' ? <DemoScreen /> : view === 'checklists' ? <ChecklistsScreen /> : view === 'appeals' ? <AppealsScreen key={appealId} evaluationId={appealId} />
         : view === 'operators' ? <OperatorsScreen operatorId={operatorId} openConversation={id => setView('conversations', id)} /> : <ConversationsScreen initialVersionId={conversationId} />}
       <footer className="page-footer">CQA <span aria-hidden="true">/</span> Каждая оценка связана с конкретной версией диалога и чек-листа.</footer>

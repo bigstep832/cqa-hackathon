@@ -38,6 +38,32 @@ async function capture(page: Page, info: TestInfo, name: string) {
   await fits(page);
   await page.screenshot({ path: info.outputPath(name + '.png') });
 }
+
+async function checkActionContrast(page: Page) {
+  const button = page.getByRole('button', { name: 'Оценить диалог', exact: true });
+  const styles = await button.evaluate(element => {
+    const value = getComputedStyle(element);
+    return { color: value.color, background: value.backgroundImage, height: element.getBoundingClientRect().height };
+  });
+  const rgb = (value: string) => value.match(/[\d.]+/g)!.slice(0, 3).map(Number);
+  const luminance = (color: number[]) => color.map(channel => {
+    const linear = channel / 255;
+    return linear <= 0.04045 ? linear / 12.92 : ((linear + 0.055) / 1.055) ** 2.4;
+  }).reduce((total, channel, index) => total + channel * [0.2126, 0.7152, 0.0722][index]!, 0);
+  const foreground = luminance(rgb(styles.color));
+  const stops = [...styles.background.matchAll(/rgb\([\d.,\s]+\)/g)].map(match => rgb(match[0]));
+  expect(stops.length).toBeGreaterThanOrEqual(2);
+  // Check the rendered text against every stop and intermediate gradient colors.
+  for (let index = 1; index < stops.length; index++) {
+    for (let step = 0; step <= 20; step++) {
+      const color = stops[index - 1]!.map((channel, i) => channel + (stops[index]![i]! - channel) * step / 20);
+      const background = luminance(color);
+      expect((Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+  expect(styles.height).toBeGreaterThanOrEqual(44);
+}
+
 for (const width of [390, 768, 1024, 1440]) {
   test('B-03: all screens, long RU/KZ/EN and keyboard at ' + width + 'px', async ({ page }, info) => {
     await page.setViewportSize({ width, height: 1000 });
@@ -50,6 +76,7 @@ for (const width of [390, 768, 1024, 1440]) {
     await page.keyboard.press('Enter');
     await page.locator('.conversation-item').click();
     await expect(page.getByRole('button', { name: 'Оценить диалог', exact: true })).toBeVisible();
+    await checkActionContrast(page);
     await capture(page, info, 'dialogues-' + width);
     await page.locator('.import-panel summary').click();
     await capture(page, info, 'import-' + width);
