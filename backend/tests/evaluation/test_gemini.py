@@ -85,6 +85,23 @@ def test_native_request_fixed_endpoint_header_and_server_metadata() -> None:
     assert "unit-test-key" not in repr(GeminiConfig(api_key="unit-test-key"))
 
 
+def test_gemini_38_rejects_explicit_candidate_count() -> None:
+    """Provider contract: newer models reject candidateCount, even when it is 1."""
+    raw = live_input().model_dump(mode="json")
+    raw["settings"]["model"] = "gemini-3.8-flash"
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if "candidateCount" in json.loads(request.content)["generationConfig"]:
+            return httpx.Response(400, json={"error": {"status": "INVALID_ARGUMENT"}})
+        return httpx.Response(200, json=success_body())
+
+    output = run_provider(handler, evaluation_input=EvaluationInput.model_validate(raw))
+    assert output.metadata.model == "gemini-3.8-flash"
+    assert len(output.answers) == 8 and len(requests) == 1
+
+
 def test_new_criterion_and_changed_answer_type_use_actual_snapshot() -> None:
     raw = live_input().model_dump(mode="json")
     extra = raw["checklist"]["criteria"][0].copy()

@@ -84,7 +84,8 @@ def build_gemini_request(evaluation_input: EvaluationInput, max_output_tokens: i
         "systemInstruction": {"parts": [{"text": build_system_instruction(evaluation_input)}]},
         "contents": [{"role": "user", "parts": [{"text": build_user_payload(evaluation_input)}]}],
         "generationConfig": {
-            "candidateCount": 1,
+            # The default is one candidate. Newer Gemini models reject this
+            # parameter even when explicitly set to 1 (Google model parameters).
             "maxOutputTokens": max_output_tokens,
             "responseMimeType": "application/json",
             "responseJsonSchema": build_response_schema(evaluation_input.checklist),
@@ -264,7 +265,7 @@ class GeminiEvaluationProvider:
                 metadata = EvaluationMetadata(
                     mode="live", provider="gemini", model=evaluation_input.settings.model,
                     instruction_version=INSTRUCTION_VERSION,
-                    pipeline_version="gemini-rest-v1", calls=tuple(calls),
+                    pipeline_version="gemini-rest-v2", calls=tuple(calls),
                 )
                 return parse_model_response(text, evaluation_input, metadata)
             except StructuredOutputError as error:
