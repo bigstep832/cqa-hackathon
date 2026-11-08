@@ -11,6 +11,7 @@ import httpx
 import pytest
 
 from app.contracts.models import EvaluationInput, EvaluationOutput
+from app.evaluation.compact import RequestEncoding
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
 from app.evaluation.openai_compatible import (
     OpenAICompatibleConfig,
@@ -113,7 +114,8 @@ def test_openai_request_uses_dynamic_rubric_and_accounts_reasoning_once() -> Non
     assert call.cost_usd is None and call.latency_ms >= 0
 
 
-def test_new_criterion_is_generated_without_eight_id_hardcoding() -> None:
+@pytest.mark.parametrize("encoding", ["canonical", "compact-v1"])
+def test_new_criterion_is_generated_without_eight_id_hardcoding(encoding: RequestEncoding) -> None:
     raw = live_input().model_dump(mode="json")
     extra = dict(raw["checklist"]["criteria"][0])
     extra.update(id="CUSTOM", title="Новый критерий")
@@ -127,7 +129,8 @@ def test_new_criterion_is_generated_without_eight_id_hardcoding() -> None:
         assert "CUSTOM" in schema["properties"]["answers"]["required"]
         return httpx.Response(200, json=completion(result))
 
-    output = run_provider(handler, evaluation_input=updated)
+    output = run_provider(handler, evaluation_input=updated,
+                          config=OpenAICompatibleConfig(api_key=TEST_KEY, request_encoding=encoding))
     assert {answer.criterion_id for answer in output.answers} == {
         criterion.id for criterion in updated.checklist.criteria
     }

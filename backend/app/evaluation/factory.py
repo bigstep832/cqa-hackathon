@@ -7,6 +7,7 @@ from typing import Literal
 import httpx
 
 from app.contracts.models import ProviderCall
+from app.evaluation.compact import RequestEncoding
 from app.evaluation.provider import EvaluationProvider
 from app.evaluation.structured import InstructionProfile, instruction_version
 
@@ -22,6 +23,7 @@ class ProviderConfig:
     max_input_bytes: int = 200_000
     max_response_bytes: int = 2_000_000
     instruction_profile: InstructionProfile = "cqa-rubric-v1"
+    request_encoding: RequestEncoding = "canonical"
 
 
 def create_provider(
@@ -39,6 +41,10 @@ def create_provider(
     """
     config = config or ProviderConfig()
     instruction_version(config.instruction_profile)
+    if config.request_encoding not in ("canonical", "compact-v1"):
+        raise ValueError("Unknown request encoding")
+    if config.request_encoding == "compact-v1" and config.provider not in {"openai", "groq"}:
+        raise ValueError("Compact encoding is supported only for OpenAI and Groq")
     if config.provider != "local" and config.local_base_url is not None:
         raise ValueError("Custom endpoint is allowed only for local models")
     if config.provider == "fixture":
@@ -75,6 +81,7 @@ def create_provider(
                 max_input_bytes=config.max_input_bytes,
                 max_response_bytes=config.max_response_bytes,
                 instruction_profile=config.instruction_profile,
+                request_encoding=config.request_encoding,
             ),
             client=client, on_attempt=on_attempt, on_call=on_call,
         )

@@ -21,8 +21,17 @@ from urllib.parse import urlsplit
 import httpx
 
 from app.contracts.models import EvaluationInput, EvaluationMetadata, EvaluationOutput, ProviderCall
+from app.evaluation.compact import (
+    COMPACT_WIRE_VERSION,
+    RequestEncoding,
+    build_compact_response_schema,
+    build_compact_system_instruction,
+    build_compact_user_payload,
+)
 from app.evaluation.provider import ProviderExecutionError
 from app.evaluation.structured import (
+    CANDIDATE_INSTRUCTION,
+    SYSTEM_INSTRUCTION,
     InstructionProfile,
     StructuredOutputError,
     build_response_schema,
@@ -52,9 +61,14 @@ class OpenAICompatibleConfig:
     max_response_bytes: int = 2_000_000
     retry_delay_seconds: float = 0.25
     instruction_profile: InstructionProfile = "cqa-rubric-v1"
+    request_encoding: RequestEncoding = "canonical"
 
     def __post_init__(self) -> None:
         instruction_version(self.instruction_profile)
+        if self.request_encoding not in ("canonical", "compact-v1"):
+            raise ValueError("Unknown request encoding")
+        if self.request_encoding == "compact-v1" and self.provider not in {"openai", "groq"}:
+            raise ValueError("Compact encoding is supported only for OpenAI and Groq")
         if self.provider not in {"openai", "groq", "local"}:
             raise ValueError("Unsupported provider")
         if type(self.max_attempts) is not int or not 1 <= self.max_attempts <= 3:
@@ -178,6 +192,14 @@ class OpenAICompatibleEvaluationProvider:
             validated = validate_evaluation_input(evaluation_input, self.config.provider)
             schema = build_response_schema(validated.checklist)
             instruction = build_system_instruction(validated, profile=self.config.instruction_profile)
+            user_payload = build_user_payload(validated)
+            if self.config.request_encoding == "compact-v1":
+                schema = build_compact_response_schema(validated.checklist)
+                instruction = build_compact_system_instruction(
+                    validated, instruction=(SYSTEM_INSTRUCTION
+                        if self.config.instruction_profile == "cqa-rubric-v1" else CANDIDATE_INSTRUCTION),
+                )
+                user_payload = build_compact_user_payload(validated)
             if self.config.response_format == "json_object":
                 instruction += "\nReturn a JSON object satisfying this schema:\n" + json.dumps(
                     schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False
@@ -191,7 +213,7 @@ class OpenAICompatibleEvaluationProvider:
                 "model": validated.settings.model,
                 "messages": [
                     {"role": "system", "content": instruction},
-                    {"role": "user", "content": build_user_payload(validated)},
+                    {"role": "user", "content": user_payload},
                 ],
                 "response_format": response_format,
                 "stream": False,
@@ -268,11 +290,13 @@ class OpenAICompatibleEvaluationProvider:
                 assert response is not None
                 try:
                     text = _response_text(response)
+                    pipeline = GROQ_PIPELINE_VERSION if self.config.provider == "groq" else PIPELINE_VERSION
+                    if self.config.request_encoding == "compact-v1":
+                        pipeline += "+" + COMPACT_WIRE_VERSION
                     metadata = EvaluationMetadata(
                         mode="live", provider=self.config.provider, model=evaluation_input.settings.model,
                         instruction_version=instruction_version(self.config.instruction_profile),
-                        pipeline_version=(GROQ_PIPELINE_VERSION if self.config.provider == "groq"
-                                          else PIPELINE_VERSION),
+                        pipeline_version=pipeline,
                         calls=tuple(calls),
                     )
                     return parse_model_response(text, evaluation_input, metadata)
