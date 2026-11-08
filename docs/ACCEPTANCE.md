@@ -30,6 +30,28 @@
 | Публичный repo, README, запуск другой машины | release | C | C-05 clean setup | Planned |
 | Контроль 23ч, freeze24ч, demo ≤5мин | release | C + команда | DEMO checklist | Planned |
 
+## Обязательная сдача JSON · P0
+
+Спецификация и структурная схема готовы в A-04, но это не реализованный экспорт
+или сданные результаты. C-06 остаётся planned; A проверяет смысл после реализации.
+Точные правила — [RESULTS_SUBMISSION](RESULTS_SUBMISSION.md).
+
+| Требование | Владелец | Проверка | Состояние |
+| --- | --- | --- | --- |
+| Отдельный формат 1.0 и mapping восьми критериев | A | JSON Schema + вектор PDF 85.38 | Spec-ready; интеграционное ревью впереди |
+| DEV 65 (60+5), PROD 10, точные исходные ID без пропусков/дублей | C | Независимый source manifest; negative ID/count cases | Planned, C-06 |
+| Типы, raw scales, N/A, числовой final_score и C08 | C + A review | Схема, общий scorer, сверка original_score | Planned, C-06/A-04 |
+| Evidence 1-based по всем ролям и нужному snapshot | C + A review | Диапазоны, чужой snapshot, верхняя граница | Planned, C-06/A-04 |
+| Original AI и официальный snapshot; не appeal/custom rubric | C + A review | История и несовместимая рубрика | Planned, C-06/A-04 |
+| Ошибки сохраняют ID, criteria=[], score=null; нет mock/подмен | C | Failed/missing/timeout + provenance tests | Planned, C-06 |
+| Отдельный офлайн-валидатор и одна команда export→validate→report | C | Репетиция synthetic вне официальных путей, без сети/платных вызовов | Planned, C-06 |
+| Rationale/error без персональных данных, секретов и traces | A/C | Ручное ревью плюс public-file guard | Planned |
+| Оба JSON commit + push и доступны в сдаваемой ветке до 24ч | C | Открыть оба файла по переданной ссылке и сверить публичный SHA | Planned, C-05 |
+
+Один `check_public_files.py`, наличие двух файлов или успешная JSON Schema
+не доказывают корректность результатов. Формат, полное множество ID, смысл,
+происхождение, приватность и доступность проверяются отдельно.
+
 ## Обязательные сквозные сценарии полного MVP
 
 1. Import → выбранные conversation/checklist versions → evaluate → результат.
