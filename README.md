@@ -1,7 +1,7 @@
 # CQA — Conversation Quality Analytics
 
-Локальный каркас для команды из трёх участников на 24-часовом хакатоне Freedom Broker.
-Система должна оценивать действия оператора по изменяемому чек-листу и показывать
+Прототип команды DT20 для 24-часового хакатона Freedom Broker.
+Система оценивает действия оператора по изменяемому чек-листу и показывает
 проверяемые доказательства. Главный ориентир отбора — близость исходной AI-оценки
 к Ground Truth на 10 новых диалогах. Формула сравнения жюри неизвестна.
 
@@ -15,6 +15,8 @@ Backend сохраняет диалоги и версии чек-листов в
 Работа с настоящими данными и точность относительно Ground Truth требуют отдельной приёмки.
 
 Начните с [AGENTS.md](AGENTS.md) и [START_HERE](docs/START_HERE.md).
+Объединённая версия A/B/C: [установка и проверенный сценарий](docs/INTEGRATED_BUILD.md).
+Соответствие исходному заданию: [матрица требований и оставшиеся шаги](docs/HACKATHON_COMPLIANCE.md).
 Роли: **A — AI и scoring**, **B — frontend**, **C — backend/workflow и интеграция**.
 Смысловое ревью общего scorer завершено A; accuracy модели требует отдельного прогона.
 
@@ -31,7 +33,7 @@ frontend — в `frontend/package-lock.json`. Docker, uv и глобальные
 Если репозиторий ещё не скачан:
 
 ```powershell
-git clone https://github.com/bigstep832/cqa-hackathon.git
+git clone --branch feat/release-integration-20261108 https://github.com/bigstep832/cqa-hackathon.git
 cd cqa-hackathon
 ```
 
