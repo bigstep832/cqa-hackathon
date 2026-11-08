@@ -90,6 +90,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversation-versions/{version_id}/audio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Audio */
+        get: operations["get_audio_api_v1_conversation_versions__version_id__audio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversation-versions/{version_id}/history/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Evaluation History */
+        get: operations["list_evaluation_history_api_v1_conversation_versions__version_id__history_evaluations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversation-versions/{version_id}/history/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Version History */
+        get: operations["list_version_history_api_v1_conversation_versions__version_id__history_versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations": {
         parameters: {
             query?: never;
@@ -672,6 +723,47 @@ export interface components {
             /** Provider */
             provider?: string | null;
         };
+        /** EvaluationHistoryItem */
+        EvaluationHistoryItem: {
+            /** Checklist Version Id */
+            checklist_version_id: string;
+            /** Conversation Version Id */
+            conversation_version_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "mock" | "live";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "succeeded" | "failed";
+        };
+        /** EvaluationHistoryList */
+        EvaluationHistoryList: {
+            /** Items */
+            items: components["schemas"]["EvaluationHistoryItem"][];
+            /**
+             * Limit
+             * @default 25
+             */
+            limit: number;
+            /**
+             * Offset
+             * @default 0
+             */
+            offset: number;
+            /** Total */
+            total: number;
+        };
         /** EvaluationMetadata */
         EvaluationMetadata: {
             /** Calls */
@@ -704,6 +796,11 @@ export interface components {
             end_message_id: string;
             /** Start Message Id */
             start_message_id: string;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /** HealthResponse */
         HealthResponse: {
@@ -894,6 +991,46 @@ export interface components {
             /** Timestamp */
             timestamp: string;
         };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+        };
+        /** VersionHistoryItem */
+        VersionHistoryItem: {
+            /** Id */
+            id: string;
+            /**
+             * Imported At
+             * Format: date-time
+             */
+            imported_at: string;
+        };
+        /** VersionHistoryList */
+        VersionHistoryList: {
+            /** Items */
+            items: components["schemas"]["VersionHistoryItem"][];
+            /**
+             * Limit
+             * @default 25
+             */
+            limit: number;
+            /**
+             * Offset
+             * @default 0
+             */
+            offset: number;
+            /** Total */
+            total: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -927,6 +1064,15 @@ export interface operations {
                     "application/json": components["schemas"]["DecisionResponse"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -945,6 +1091,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -954,8 +1109,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -963,8 +1118,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -994,6 +1149,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChecklistVersion"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1012,6 +1176,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1021,8 +1194,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1030,8 +1203,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1059,6 +1232,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChecklistList"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1077,6 +1259,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1086,8 +1277,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1095,8 +1286,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1128,6 +1319,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChecklistVersion"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1146,6 +1346,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1155,8 +1364,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1164,8 +1373,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1199,6 +1408,15 @@ export interface operations {
                     "application/json": components["schemas"]["ChecklistVersion"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1217,6 +1435,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1226,8 +1453,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1235,8 +1462,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1266,6 +1493,15 @@ export interface operations {
                     "application/json": components["schemas"]["ConversationVersion"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1284,6 +1520,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1293,8 +1538,196 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source or workflow unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_audio_api_v1_conversation_versions__version_id__audio_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                Range?: string | null;
+            };
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete audio file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/3gpp": string;
+                    "audio/aac": string;
+                    "audio/amr": string;
+                    "audio/flac": string;
+                    "audio/mp3": string;
+                    "audio/mp4": string;
+                    "audio/mpeg": string;
+                    "audio/ogg": string;
+                    "audio/wav": string;
+                    "audio/webm": string;
+                    "audio/x-m4a": string;
+                    "audio/x-wav": string;
+                };
+            };
+            /** @description Partial audio content */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/3gpp": string;
+                    "audio/aac": string;
+                    "audio/amr": string;
+                    "audio/flac": string;
+                    "audio/mp3": string;
+                    "audio/mp4": string;
+                    "audio/mpeg": string;
+                    "audio/ogg": string;
+                    "audio/wav": string;
+                    "audio/webm": string;
+                    "audio/x-m4a": string;
+                    "audio/x-wav": string;
+                };
+            };
+            /** @description Media origin not allowed */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version or audio not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invalid or unavailable range */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Invalid upstream media */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source busy or media not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_evaluation_history_api_v1_conversation_versions__version_id__history_evaluations_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvaluationHistoryList"];
+                };
+            };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Entity not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1304,6 +1737,103 @@ export interface operations {
             };
             /** @description Upstream source or provider failed */
             502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source or workflow unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_version_history_api_v1_conversation_versions__version_id__history_versions_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionHistoryList"];
+                };
+            };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Entity not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Version or idempotency conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Upstream source or provider failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1336,6 +1866,15 @@ export interface operations {
                     "application/json": components["schemas"]["ConversationList"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1354,6 +1893,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1363,8 +1911,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1372,8 +1920,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1405,6 +1953,15 @@ export interface operations {
                     "application/json": components["schemas"]["ImportResponse"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1423,6 +1980,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1432,8 +1998,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1441,8 +2007,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1472,6 +2038,15 @@ export interface operations {
                     "application/json": components["schemas"]["ConversationVersion"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1490,6 +2065,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1499,8 +2083,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1508,8 +2092,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1541,6 +2125,15 @@ export interface operations {
                     "application/json": components["schemas"]["ImportResponse"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1559,6 +2152,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1568,8 +2170,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1577,8 +2179,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1606,6 +2208,15 @@ export interface operations {
                     "application/json": components["schemas"]["DemoPayload"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1624,8 +2235,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Request validation failed */
-            422: {
+            /** @description Request body too large */
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1633,8 +2244,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Request validation failed */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1651,12 +2262,23 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Source or workflow unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     create_evaluation_api_v1_evaluations_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "idempotency-key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1675,6 +2297,15 @@ export interface operations {
                     "application/json": components["schemas"]["Evaluation"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1693,6 +2324,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1702,8 +2342,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1711,8 +2351,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1742,6 +2382,15 @@ export interface operations {
                     "application/json": components["schemas"]["Evaluation"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1760,6 +2409,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1769,8 +2427,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1778,8 +2436,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1809,6 +2467,15 @@ export interface operations {
                     "application/json": components["schemas"]["AppealList"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1827,6 +2494,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1836,8 +2512,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1845,8 +2521,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1880,6 +2556,15 @@ export interface operations {
                     "application/json": components["schemas"]["Appeal"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1898,6 +2583,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1907,8 +2601,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1916,8 +2610,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1945,6 +2639,15 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
+            /** @description Browser origin or operation denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Entity not found */
             404: {
                 headers: {
@@ -1963,6 +2666,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
+            /** @description Request body too large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description Request validation failed */
             422: {
                 headers: {
@@ -1972,8 +2684,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Contract only: workflow not implemented */
-            501: {
+            /** @description Upstream source or provider failed */
+            502: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1981,8 +2693,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Upstream source or provider failed */
-            502: {
+            /** @description Source or workflow unavailable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

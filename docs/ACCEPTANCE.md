@@ -1,9 +1,24 @@
 # Приёмка: каркас и полный продукт
 
+**Прогон 08.11.2026.** Проверены формы ветки B `0307489` с FastAPI, отдельной
+SQLite и полным A‑02 из `ecf4d74`. В Edge после переимпорта новая карточка показала
+версию 2. В чистой вкладке открыли оценку по известному ID через форму апелляций:
+доказательство C01 вело к реплике оператора из версии 1. Решение override изменило
+эффективный балл с 85,38 до 70,00; confirm другого критерия сохранил его ответ.
+Исходные ответы, исходный балл и причины решений сохранились после обновления.
+Конкурирующее решение получило 409, форма показала уже принятое решение.
+Изменённый через UI чек-лист дал девять ответов и 51,34. Источник и оценщик
+использовали синтетические данные на localhost. Прошли 34 штатных сценария Edge.
+
+Поиск старой оценки без заранее известного ID проверяется отдельно через два
+маршрута истории из [API_CONTRACT](API_CONTRACT.md). В проверенной версии B
+осталось подключить их к списку в карточке. Пятиминутная командная репетиция,
+оценка по независимой разметке и сдача официальных файлов ещё предстоят.
+
 Статус **bootstrap** означает реализованный объём этапа 0, который требуется подтвердить
 фактическими командами. **Planned** означает будущую функцию, даже если её API уже в OpenAPI.
 Фактический интеграционный прогон описан в [BOOTSTRAP_REPORT](BOOTSTRAP_REPORT.md).
-Он подтверждает только реализованный объём; planned-сценарии остаются задачами MVP.
+В этой ветке серверные результаты подтверждают также тесты в `backend/tests/api` и `backend/tests/workflow`. Приёмка настоящей модели, UI и отправки результатов ведётся отдельно.
 
 | Требование | Модуль | Владелец | Проверка | Состояние |
 | --- | --- | --- | --- | --- |
@@ -14,16 +29,16 @@
 | Mock только synthetic, live без auto fallback | evaluation/API/UI | A/C/B | Provider tests + banner smoke | Bootstrap |
 | Pydantic → OpenAPI → TS, все маршруты | contracts/scripts | A/C/B | export --check, generate:api:check | Bootstrap |
 | Настоящий AI анализ новых данных | evaluation | A | A-01/A-02, independent holdout | Planned |
-| Импорт DEV/control по group_id и ручной JSON | services/storage/API | C | C-01 integration | Planned |
-| Повтор изменённого текста создаёт новую версию | storage | C | Import unchanged/changed test | Planned |
-| Evidence старой оценки открывает старый snapshot | storage/API/UI | C/B | Reimport → old evaluation → evidence | Planned |
-| Checklist editor: новый criterion и изменение answer type | UI/services | B/C | B-02 + browser сценарий | Planned |
-| Изменение rubric фактически меняет запрос provider | services/evaluation | C/A | Capture EvaluationInput test | Planned |
-| Старая оценка после изменения rubric остаётся прежней | storage | C | Version immutability integration | Planned |
-| Queued/running/succeeded/failed, restart/retry | services | C | C-03 restart test | Planned |
-| Апелляция, confirm/override, reason, пересчёт | services/UI | C/B | C-04 + browser flow | Planned |
-| Исходный AI immutable, decision атомарен и идемпотентен | storage/services | C | Duplicate/conflict/rollback tests | Planned |
-| Аудио доступно, offset не выдумывается | import/UI | C/B | Call fixture, missing mapping | Planned |
+| Импорт DEV/control по group_id и ручной JSON | services/storage/API | C | C-01 integration | API проверен на синтетическом источнике, реальный импорт впереди |
+| Повтор изменённого текста создаёт новую версию | storage | C | Import unchanged/changed test | Проверено API + SQLite |
+| Evidence старой оценки открывает старый snapshot | storage/API/UI | C/B | Reimport → old evaluation → evidence | Проверено через B по ID после переимпорта; список истории в карточке ещё не подключён |
+| Checklist editor: новый criterion и изменение answer type | UI/services | B/C | B-03 + browser сценарий | В Edge изменён C01 и добавлен C09; следующая оценка использовала версию с девятью критериями |
+| Изменение rubric фактически меняет запрос provider | services/evaluation | C/A | Capture EvaluationInput test | Проверка версии в worker |
+| Старая оценка после изменения rubric остаётся прежней | storage | C | Version immutability integration | Проверено на SQLite |
+| Queued/running/succeeded/failed, restart/retry | services | C | C-03 restart test | Проверено, включая restart |
+| Апелляция, confirm/override, reason, пересчёт | services/UI | C/B | C-04 + browser flow | Проверено через B, включая оригинал после reload и конфликт 409 |
+| Исходный AI immutable, decision атомарен и идемпотентен | storage/services | C | Duplicate/conflict/rollback tests | Проверено на синтетической оценке |
+| Аудио доступно, offset не выдумывается | import/UI | C/B | Call fixture, missing mapping | Через B проверены play/pause/seek синтетической записи и ошибка в карточке |
 | RU/KZ/EN без повреждения и смысловая оценка | Весь pipeline | A/B/C | Unicode import/UI + human eval | Planned |
 | Новый технический ID не меняет решение | evaluation | A | Metamorphic eval | Planned |
 | Инструкция в transcript не подменяет rubric | evaluation | A | Adversarial synthetic eval | Planned |
@@ -32,19 +47,18 @@
 
 ## Обязательная сдача JSON · P0
 
-Спецификация и структурная схема готовы в A-04, но это не реализованный экспорт
-или сданные результаты. C-06 остаётся planned; A проверяет смысл после реализации.
+Экспортёр и отдельная проверка работают офлайн. Интеграционный тест проходит импорт, очередь и выгрузку в изолированном каталоге. A проверяет смысл, команда подтверждает настоящие результаты.
 Точные правила — [RESULTS_SUBMISSION](RESULTS_SUBMISSION.md).
 
 | Требование | Владелец | Проверка | Состояние |
 | --- | --- | --- | --- |
 | Отдельный формат 1.0 и mapping восьми критериев | A | JSON Schema + вектор PDF 85.38 | Spec-ready; интеграционное ревью впереди |
-| DEV 65 (60+5), PROD 10, точные исходные ID без пропусков/дублей | C | Независимый source manifest; negative ID/count cases | Planned, C-06 |
-| Типы, raw scales, N/A, числовой final_score и C08 | C + A review | Схема, общий scorer, сверка original_score | Planned, C-06/A-04 |
-| Evidence 1-based по всем ролям и нужному snapshot | C + A review | Диапазоны, чужой snapshot, верхняя граница | Planned, C-06/A-04 |
-| Original AI и официальный snapshot; не appeal/custom rubric | C + A review | История и несовместимая рубрика | Planned, C-06/A-04 |
-| Ошибки сохраняют ID, criteria=[], score=null; нет mock/подмен | C | Failed/missing/timeout + provenance tests | Planned, C-06 |
-| Отдельный офлайн-валидатор и одна команда export→validate→report | C | Репетиция synthetic вне официальных путей, без сети/платных вызовов | Planned, C-06 |
+| DEV 65 (60+5), PROD 10, точные исходные ID без пропусков/дублей | C | Независимый source manifest; negative ID/count cases | Проверено офлайн |
+| Типы, raw scales, N/A, числовой final_score и C08 | C + A review | Схема, общий scorer, сверка original_score | Офлайн тесты C-06 прошли, смысловое ревью A |
+| Evidence 1-based по всем ролям и нужному snapshot | C + A review | Диапазоны, чужой snapshot, верхняя граница | Офлайн тесты C-06 прошли, смысловое ревью A |
+| Original AI и официальный snapshot; не appeal/custom rubric | C + A review | История и несовместимая рубрика | Офлайн тесты C-06 прошли, смысловое ревью A |
+| Ошибки сохраняют ID, criteria=[], score=null; нет mock/подмен | C | Failed/missing/timeout + provenance tests | Проверено офлайн |
+| Отдельный офлайн-валидатор и одна команда export→validate→report | C | Репетиция synthetic вне официальных путей, без сети/платных вызовов | Проверено офлайн |
 | Rationale/error без персональных данных, секретов и traces | A/C | Ручное ревью плюс public-file guard | Planned |
 | Оба JSON commit + push и доступны в сдаваемой ветке до 24ч | C | Открыть оба файла по переданной ссылке и сверить публичный SHA | Planned, C-05 |
 
@@ -70,6 +84,21 @@ Bootstrap Playwright покрывает demo/evidence, а не все восем
 за участников весь UI/storage.
 
 ## Команды и отчёт
+
+### Фактический браузерный прогон 7 ноября
+
+На опубликованном экране CQA в Edge проверены загрузка синтетического диалога с backend,
+балл 85,38, переход с клавиатуры к реплике C01 и отсутствие горизонтальной прокрутки на 390 px.
+
+В отдельном прогоне через формы Swagger UI выполнены импорт группы с синтетическим звонком,
+повторный импорт изменённого текста и чтение предыдущей версии. Созданы две версии чек-листа,
+во второй добавлен C09 и изменена шкала C01. Получены две оценки через тестовый HTTP-транспорт,
+сверена привязка доказательства к старой реплике, в браузере воспроизведена секундная WAV-запись.
+Решение по апелляции изменило эффективный балл с 85,38 до 70,00; исходный балл и ответы сохранены.
+
+Это самостоятельная проверка C через браузер. Совместный прогон с B через продуктовые
+формы импорта, редактора и апелляций остаётся открытым. Настоящие данные и модель в этом
+прогоне не использовались.
 
 `python scripts/verify.py` — офлайн статические/модульные/контрактные/frontend проверки.
 `npm --prefix frontend run test:e2e` — отдельный браузерный прогон.

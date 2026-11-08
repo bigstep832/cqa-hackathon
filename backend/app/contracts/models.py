@@ -86,6 +86,12 @@ class CriterionDefinition(FrozenModel):
             raise ValueError("Option values must be unique")
         if any(key[0] != self.answer_type for key in keys):
             raise ValueError("Option value type must match answer_type")
+        if self.answer_type == "choice" and any(
+            isinstance(option.value, str)
+            and (not option.value or option.value != option.value.strip())
+            for option in self.options
+        ):
+            raise ValueError("Choice option values must be nonempty without surrounding whitespace")
         if self.answer_type == "boolean" and {key[1] for key in keys} != {"True", "False"}:
             raise ValueError("Boolean criteria require exactly true and false")
         if self.answer_type == "scale" and max(Decimal(key[1]) for key in keys) <= 0:

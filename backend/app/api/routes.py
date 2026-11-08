@@ -1,10 +1,11 @@
-"""Full agreed API schema. Workflow routes explicitly remain participant C's tasks."""
+"""CQA HTTP API using the shared domain contracts."""
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Path, Query
+from fastapi import APIRouter, Header, Path, Query
 
-from app.api.errors import not_implemented
+from app.api.boundary import StrictJSONRoute
+from app.api.history_models import EvaluationHistoryList, VersionHistoryList
 from app.contracts.models import (
     Appeal,
     AppealCreateRequest,
@@ -29,15 +30,19 @@ from app.contracts.models import (
     Language,
 )
 from app.evaluation.demo import build_demo_payload
+from app.services import appeals, imports, jobs
+from app.storage import conversations, history, workflow
 
 ERRORS: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorResponse, "description": "Entity not found"},
     409: {"model": ErrorResponse, "description": "Version or idempotency conflict"},
     422: {"model": ErrorResponse, "description": "Request validation failed"},
-    501: {"model": ErrorResponse, "description": "Contract only: workflow not implemented"},
+    403: {"model": ErrorResponse, "description": "Browser origin or operation denied"},
+    413: {"model": ErrorResponse, "description": "Request body too large"},
     502: {"model": ErrorResponse, "description": "Upstream source or provider failed"},
+    503: {"model": ErrorResponse, "description": "Source or workflow unavailable"},
 }
-router = APIRouter(responses=ERRORS)
+router = APIRouter(responses=ERRORS, route_class=StrictJSONRoute)
 Identifier = Annotated[str, Path(min_length=1, max_length=200)]
 
 
@@ -54,31 +59,32 @@ async def demo() -> DemoPayload:
 
 @router.post("/api/v1/datasets/import", response_model=ImportResponse, tags=["datasets"])
 def import_dataset(request: DatasetImportRequest) -> ImportResponse:
-    not_implemented("C-01")
+    return imports.import_dataset(request)
 
 
 @router.post("/api/v1/conversations/import", response_model=ImportResponse, tags=["datasets"])
 def import_conversations(request: ConversationImportRequest) -> ImportResponse:
-    not_implemented("C-01")
+    return conversations.import_conversations(request)
 
 
 @router.get("/api/v1/conversations", response_model=ConversationList, tags=["conversations"])
+@router.get("/api/v1/conversations/", include_in_schema=False)
 def list_conversations(
     offset: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     language: Language | None = None,
     channel: Channel | None = None,
 ) -> ConversationList:
-    not_implemented("C-01")
+    return conversations.list_conversations(offset, limit, language, channel)
 
 
 @router.get(
-    "/api/v1/conversations/{conversation_id}",
+    "/api/v1/conversations/{conversation_id:path}",
     response_model=ConversationVersion,
     tags=["conversations"],
 )
-def get_conversation(conversation_id: Identifier) -> ConversationVersion:
-    not_implemented("C-01")
+def get_conversation(conversation_id: Annotated[str, Path(min_length=1)]) -> ConversationVersion:
+    return conversations.get_conversation(conversation_id)
 
 
 @router.get(
@@ -87,19 +93,43 @@ def get_conversation(conversation_id: Identifier) -> ConversationVersion:
     tags=["conversations"],
 )
 def get_conversation_version(version_id: Identifier) -> ConversationVersion:
-    not_implemented("C-01")
+    return conversations.get_version(version_id)
+
+
+@router.get(
+    "/api/v1/conversation-versions/{version_id}/history/versions",
+    response_model=VersionHistoryList, tags=["conversations"],
+)
+def list_version_history(
+    version_id: Identifier,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> VersionHistoryList:
+    return history.list_versions(version_id, offset, limit)
+
+
+@router.get(
+    "/api/v1/conversation-versions/{version_id}/history/evaluations",
+    response_model=EvaluationHistoryList, tags=["evaluations"],
+)
+def list_evaluation_history(
+    version_id: Identifier,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> EvaluationHistoryList:
+    return history.list_evaluations(version_id, offset, limit)
 
 
 @router.post(
     "/api/v1/checklists", response_model=ChecklistVersion, status_code=201, tags=["checklists"]
 )
 def create_checklist(request: ChecklistCreateRequest) -> ChecklistVersion:
-    not_implemented("C-02")
+    return workflow.save_checklist(request)
 
 
 @router.get("/api/v1/checklists", response_model=ChecklistList, tags=["checklists"])
 def list_checklists() -> ChecklistList:
-    not_implemented("C-02")
+    return workflow.list_checklists()
 
 
 @router.post(
@@ -111,7 +141,7 @@ def list_checklists() -> ChecklistList:
 def create_checklist_version(
     checklist_id: Identifier, request: ChecklistVersionCreateRequest
 ) -> ChecklistVersion:
-    not_implemented("C-02")
+    return workflow.save_checklist(request, checklist_id)
 
 
 @router.get(
@@ -120,21 +150,24 @@ def create_checklist_version(
     tags=["checklists"],
 )
 def get_checklist_version(version_id: Identifier) -> ChecklistVersion:
-    not_implemented("C-02")
+    return workflow.get_checklist_version(version_id)
 
 
 @router.post(
     "/api/v1/evaluations", response_model=Evaluation, status_code=202, tags=["evaluations"]
 )
-def create_evaluation(request: EvaluationCreateRequest) -> Evaluation:
-    not_implemented("C-03")
+def create_evaluation(
+    request: EvaluationCreateRequest,
+    idempotency_key: Annotated[str | None, Header(min_length=1, max_length=200)] = None,
+) -> Evaluation:
+    return jobs.create_evaluation(request, idempotency_key)
 
 
 @router.get(
     "/api/v1/evaluations/{evaluation_id}", response_model=Evaluation, tags=["evaluations"]
 )
 def get_evaluation(evaluation_id: Identifier) -> Evaluation:
-    not_implemented("C-03")
+    return workflow.get_evaluation(evaluation_id)
 
 
 @router.post(
@@ -144,18 +177,18 @@ def get_evaluation(evaluation_id: Identifier) -> Evaluation:
     tags=["appeals"],
 )
 def create_appeal(evaluation_id: Identifier, request: AppealCreateRequest) -> Appeal:
-    not_implemented("C-04")
+    return appeals.create_appeal(evaluation_id, request)
 
 
 @router.get(
     "/api/v1/evaluations/{evaluation_id}/appeals", response_model=AppealList, tags=["appeals"]
 )
 def list_appeals(evaluation_id: Identifier) -> AppealList:
-    not_implemented("C-04")
+    return appeals.list_appeals(evaluation_id)
 
 
 @router.post(
     "/api/v1/appeals/{appeal_id}/decision", response_model=DecisionResponse, tags=["appeals"]
 )
 def decide_appeal(appeal_id: Identifier, request: DecisionCreateRequest) -> DecisionResponse:
-    not_implemented("C-04")
+    return appeals.decide_appeal(appeal_id, request)

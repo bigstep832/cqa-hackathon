@@ -6,6 +6,7 @@ from typing import Literal
 
 import httpx
 
+from app.contracts.models import ProviderCall
 from app.evaluation.provider import EvaluationProvider
 
 
@@ -26,6 +27,7 @@ def create_provider(
     *,
     client: httpx.AsyncClient | None = None,
     on_attempt: Callable[[], None] | None = None,
+    on_call: Callable[[ProviderCall], None] | None = None,
 ) -> EvaluationProvider:
     """Никаких env/default облаков, автоматического fallback и сетевого discovery.
 
@@ -50,7 +52,7 @@ def create_provider(
                 max_input_bytes=config.max_input_bytes,
                 max_response_bytes=config.max_response_bytes,
             ),
-            client=client, on_attempt=on_attempt,
+            client=client, on_attempt=on_attempt, on_call=on_call,
         )
     if config.provider in {"openai", "local"}:
         from app.evaluation.openai_compatible import (
@@ -67,6 +69,6 @@ def create_provider(
                 max_input_bytes=config.max_input_bytes,
                 max_response_bytes=config.max_response_bytes,
             ),
-            client=client, on_attempt=on_attempt,
+            client=client, on_attempt=on_attempt, on_call=on_call,
         )
     raise ValueError("Unknown evaluation provider")
