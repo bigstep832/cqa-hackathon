@@ -58,7 +58,9 @@ def verify_export(tmp_path, monkeypatch, versions, job_id, provider, prior_posts
 
 
 @pytest.mark.parametrize("provider", ["local", "gemini"])
-@pytest.mark.parametrize("block_attempt,reason", [(1, "revoke"), (2, "revoke"), (1, "expire")])
+@pytest.mark.parametrize("block_attempt,reason", [
+    (1, "revoke"), (2, "revoke"), (1, "expire"), (1, "profile"), (2, "profile"),
+])
 def test_permission_covers_journal_commit(provider, block_attempt, reason, tmp_path, monkeypatch):
     seen = []
 
@@ -131,8 +133,11 @@ def test_permission_covers_journal_commit(provider, block_attempt, reason, tmp_p
             reading.set()
             assert committing.wait(5), "writer did not attempt COMMIT"
             sleep(1.2 if reason == "expire" else 0.1)
-            if reason == "revoke":
-                plan["dataset_group_ids"] = ["REVOKED_GROUP"]
+            if reason in {"revoke", "profile"}:
+                if reason == "profile":
+                    plan["instruction_profile"] = "cqa-rubric-v4-candidate"
+                else:
+                    plan["dataset_group_ids"] = ["REVOKED_GROUP"]
                 replacement = tmp_path / "replacement.json"
                 replacement.write_text(json.dumps(plan), encoding="utf-8")
                 replacement.replace(path)

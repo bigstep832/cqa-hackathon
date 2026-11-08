@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from app.contracts.models import EvaluationInput, EvaluationSettings
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
+from app.evaluation.structured import build_system_instruction
 
 
 def plan_data() -> dict:
@@ -106,19 +107,26 @@ def test_reservation_is_persisted_before_request_and_never_refunded(tmp_path: Pa
     assert stored["actual_cost_usd"] is None
 
 
-def test_runner_scores_valid_output_and_saves_original_result(tmp_path: Path) -> None:
+@pytest.mark.parametrize("profile", [None, "cqa-rubric-v1", "cqa-rubric-v4-candidate"])
+def test_runner_scores_valid_output_and_saves_original_result(tmp_path: Path, profile) -> None:
     output = tmp_path / "valid"
     calls = []
+    data = plan_data()
+    if profile is not None:
+        data["instruction_profile"] = profile
+    expected_profile = profile or "cqa-rubric-v1"
 
     def transport(request: httpx.Request) -> httpx.Response:
         assert json.loads((output / "ledger.json").read_text())["attempts_reserved"] == 1
+        sent = json.loads(request.content)["systemInstruction"]["parts"][0]["text"]
+        assert sent == build_system_instruction(live_input(), profile=expected_profile)
         calls.append(request)
         return httpx.Response(200, json=valid_response())
 
     async def run() -> None:
         async with httpx.AsyncClient(transport=httpx.MockTransport(transport)) as client:
             predictions = await execute(
-                [live_input()], LivePlan.model_validate(plan_data()), output,
+                [live_input()], LivePlan.model_validate(data), output,
                 api_key="synthetic-test-credential", client=client,
             )
         result = predictions[0]
@@ -127,11 +135,19 @@ def test_runner_scores_valid_output_and_saves_original_result(tmp_path: Path) ->
         assert result.original_score.total == Decimal("85.38")
         assert result.effective_score == result.original_score
         assert result.output is not None and result.output.metadata.mode == "live"
+        assert result.output.metadata.instruction_version == expected_profile
 
     asyncio.run(run())
     assert len(calls) == 1
     assert (output / "attempts.json").exists()
     assert "synthetic-test-credential" not in (output / "plan.json").read_text()
+    assert json.loads((output / "plan.json").read_text())["instruction_profile"] == expected_profile
+
+
+@pytest.mark.parametrize("profile", ["unknown", "", None, 1])
+def test_unknown_instruction_profile_rejected_before_execution(profile) -> None:
+    with pytest.raises(ValidationError):
+        LivePlan.model_validate({**plan_data(), "instruction_profile": profile})
 
 
 def test_global_call_cap_includes_retry_and_keeps_failed_without_score(tmp_path: Path) -> None:

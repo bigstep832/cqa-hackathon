@@ -24,6 +24,7 @@ from app.contracts.models import (
 )
 from app.domain.scoring import score
 from app.domain.snapshots import checklist_content_hash, conversation_content_hash
+from app.evaluation.structured import InstructionProfile
 
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
 Money = Annotated[Decimal, Field(ge=0, allow_inf_nan=False, max_digits=18, decimal_places=9)]
@@ -65,6 +66,7 @@ class LivePlan(FrozenModel):
     max_output_tokens: Annotated[int, Field(strict=True, ge=1, le=100_000)] = 8192
     budget_usd: Money
     pricing: PricingCeiling
+    instruction_profile: InstructionProfile = "cqa-rubric-v1"
 
     @property
     def reservation_per_request_usd(self) -> Decimal:
@@ -192,7 +194,8 @@ async def execute(
                        local_base_url=plan.local_base_url,
                        local_response_format=plan.local_response_format,
                        max_attempts=plan.max_attempts,
-                       max_output_tokens=plan.max_output_tokens),
+                       max_output_tokens=plan.max_output_tokens,
+                       instruction_profile=plan.instruction_profile),
         client=client, on_attempt=ledger.before_attempt,
     )
     predictions: list[Evaluation] = []
@@ -247,6 +250,7 @@ def main() -> int:
         summary = {
             "mode": "execute" if args.execute else "validate_only_no_network",
             "provider": plan.provider, "model": plan.model,
+            "instruction_profile": plan.instruction_profile,
             "selected_cases": len(selected), "omitted_cases": len(cases) - len(selected),
             "max_requests": plan.max_requests,
             "worst_case_reservation_usd": str(plan.reservation_per_request_usd * plan.max_requests),
