@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EvaluationWorkspace } from '../src/EvaluationWorkspace';
@@ -131,7 +131,7 @@ describe('Запуск и результат оценки', () => {
     expect(transport.mock.calls.map(call => call[0])).toContain('/api/v1/checklist-versions/history-checklist-v1');
     await userEvent.click(screen.getByRole('button', { name: 'Показать доказательство C01' }));
     expect(document.querySelector('.message--highlighted')).toHaveFocus();
-    expect(screen.getAllByText('N/A')).toHaveLength(2);
+    expect(within(screen.getByRole('region', { name: 'Оценка по критериям' })).getAllByText('N/A')).toHaveLength(2);
   });
 
   it('показывает queued → running → succeeded и прекращает polling', async () => {

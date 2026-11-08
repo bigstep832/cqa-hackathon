@@ -45,6 +45,7 @@ test('историческая оценка и апелляция открыва
   await expect(page.getByText('Открыта историческая версия диалога.')).toBeVisible();
   await page.getByRole('button', { name: /Открыть оценку/ }).click();
   await expect(page.getByTestId('total-score')).toHaveText('85,38');
+  await expect(page.getByRole('region', { name: 'Баллы по критериям' }).getByRole('meter', { name: /^C01/ })).toHaveAttribute('aria-valuenow', '10');
   await expect(page.getByTestId('effective-score')).toHaveText('70,00');
   await expect(page.getByText(/Синтетическое решение v1/)).toBeVisible();
   const evidence = page.getByRole('button', { name: 'Показать доказательство C01' });

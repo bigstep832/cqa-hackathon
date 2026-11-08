@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import fixture from '../../fixtures/synthetic/demo.json';
@@ -19,7 +19,7 @@ describe('Синтетический пример', () => {
     render(<DemoScreen />);
     expect(await screen.findByTestId('total-score')).toHaveTextContent('85,38');
     expect(screen.getByText('Тестовые данные — не AI-оценка')).toBeVisible();
-    expect(screen.getAllByText('N/A')).toHaveLength(2);
+    expect(within(screen.getByRole('region', { name: 'Оценка по критериям' })).getAllByText('N/A')).toHaveLength(2);
 
     const evidence = demo.evaluation.output!.answers.find(answer => answer.criterion_id === 'C01')!.evidence[0]!;
     const message = demo.conversation.messages.find(item => item.message_id === evidence.start_message_id)!;

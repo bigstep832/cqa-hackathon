@@ -1,127 +1,268 @@
 # CQA — Conversation Quality Analytics
 
-Локальный каркас для команды из трёх участников на 24-часовом хакатоне Freedom Broker.
-Система должна оценивать действия оператора по изменяемому чек-листу и показывать
-проверяемые доказательства. Главный ориентир отбора — близость исходной AI-оценки
-к Ground Truth на 10 новых диалогах. Формула сравнения жюри неизвестна.
+**DT20 · Freedom Broker Hackathon**
 
-Backend сохраняет диалоги и версии чек-листов в SQLite, выполняет задания оценки,
-принимает апелляции и выгружает исходные оценки в официальный формат. Frontend этой
-ветки показывает синтетический пример. Инструкции по настройке, запуску заданий и
-проверке результатов приведены в [контракте API](docs/API_CONTRACT.md),
-[инструкции по экспорту](docs/EXPORT.md) и [отчёте участника A](docs/A01_OFFLINE_HANDOFF.md).
-Работа с настоящими данными и точность относительно Ground Truth требуют отдельной приёмки.
+CQA помогает проверять качество работы оператора по изменяемому чек-листу:
+от импорта диалога до оценки, проверки доказательств и рассмотрения апелляции.
+Каждая оценка связана с конкретными версиями диалога и чек-листа, поэтому
+повторный импорт и изменение критериев не переписывают историю.
 
-Начните с [AGENTS.md](AGENTS.md) и [START_HERE](docs/START_HERE.md).
-Роли: **A — AI и scoring**, **B — frontend**, **C — backend/workflow и интеграция**.
-Смысловое ревью общего scorer завершено A; accuracy модели требует отдельного прогона.
+Главный ориентир хакатона — совпадение исходной автоматической оценки с Ground Truth
+на 10 новых транскриптах. Формула сравнения жюри неизвестна; успешные технические
+проверки не являются подтверждением точности модели.
+
+## Команда
+
+- **Saken Zhadiger**
+- **Irtay Aldiyar**
+- **Mutalipov Abylaikhan**
+
+Зоны ответственности: A — AI, рубрика и scoring; B — frontend;
+C — API, хранение, workflow и интеграция. Правила совместной работы:
+[AGENTS.md](AGENTS.md), [план команды](docs/TEAM_PLAN.md).
+
+Стоп-код хакатона: **8 ноября 2026 года, 12:00 по Астане**.
+
+## Возможности
+
+- **Диалоги и импорт.** Список с фильтрами языка и канала, ручной импорт JSON,
+  просмотр транскрипта. Backend также поддерживает импорт группы из настроенного источника.
+- **Оценивание.** Выбор версии чек-листа и явного режима mock/live, запуск задания,
+  polling статусов queued/running/succeeded/failed, защита от повторной отправки.
+- **Карточка результата.** Исходный и эффективный баллы, ответы по критериям,
+  веса, секции, N/A, пояснения и переход к доказательствам в транскрипте.
+- **Диаграмма по критериям.** Горизонтальные полосы «начислено / вес» под итоговыми
+  баллами; переключение исходного и эффективного результата. Дробные веса сохраняются,
+  N/A показан нейтрально, флаги вынесены отдельно. Итог на frontend не пересчитывается.
+- **Чек-листы.** Создание и редактирование через новую неизменяемую версию:
+  C09 и последующие критерии, boolean/scale/choice, scored/flag, секции, веса,
+  варианты ответа, quality и условия N/A.
+- **Апелляции.** Обращение по критерию с комментарием, confirm или override
+  с обязательной причиной, идемпотентность и обработка конфликтов.
+  Исходный ответ ИИ сохраняется; эффективный результат возвращает backend.
+- **История.** Версии диалога и оценки с пагинацией. Старую оценку можно открыть
+  из карточки без ручного ввода ID и без запуска нового задания.
+  Транскрипт, критерии и evidence загружаются из оценённых snapshots.
+- **Аудио.** Воспроизведение через маршрут backend, ошибка загрузки прямо в карточке.
+  Транскрипт остаётся доступным; смещения не выводятся из ISO timestamp.
+- **Интерфейс.** Светлый корпоративный стиль с ориентиром на Freedom Broker,
+  клавиатурная навигация, адаптация к 390 px, loading/empty/error/retry.
+  Для удалённой сохранённой оценки предусмотрено восстановление после HTTP 404.
+
+Backend хранит версии, задания и решения в SQLite, выполняет очередь оценки и
+экспортирует исходные результаты в официальный формат. Подготовлены инструменты
+офлайн-разметки и сравнения качества. Приёмка настоящего AI-провайдера и измерение
+точности остаются отдельной задачей — см. [A-02](docs/A02_OFFLINE_HANDOFF.md).
+
+## Стек и структура
+
+Frontend: **React 19, TypeScript, Vite, CSS**, Vitest и Playwright.
+Backend: **Python, FastAPI, Pydantic, SQLAlchemy, SQLite**, pytest.
+Для диаграммы используется React + CSS без отдельной chart-библиотеки.
+
+```text
+frontend/              Интерфейс, типизированный API client, UI-тесты
+backend/app/api/        HTTP-маршруты
+backend/app/storage/    SQLite и неизменяемые snapshots
+backend/app/services/   Импорт, очередь, workflow, апелляции
+backend/app/evaluation/ Провайдеры и валидация ответов
+backend/app/domain/     Канонический scorer
+backend/app/contracts/ Pydantic DTO — источник контрактов
+contracts/             Сгенерированный OpenAPI
+config/checklists/     Каноническая рубрика
+fixtures/synthetic/    Только синтетические примеры
+evals/                 Разметка и сравнение качества
+scripts/               Проверки, генерация, экспорт и сдача
+docs/                  Спецификации и handoff команды
+```
 
 ## Требования
 
-Использованные инструменты среды: Python **3.13.2**, Node **24.16.0**, npm **11.13**.
-Python-зависимости закреплены в корневом `requirements.lock` (pip-tools),
-frontend — в `frontend/package-lock.json`. Docker, uv и глобальные установки не нужны.
+- **Python 3.13.x** — диапазон проекта: `>=3.13,<3.14` в `pyproject.toml`.
+  Python 3.14 не входит в объявленную поддержку проекта.
+- **Node.js 24.x** — диапазон frontend: `>=24 <25`.
+- npm и Git. Python-зависимости закреплены в `requirements.lock`,
+  frontend-зависимости — в `frontend/package-lock.json`.
+- Для браузерных проверок на Windows — установленный Microsoft Edge.
 
-## Запуск в Windows / PowerShell
+Docker, uv и глобальная установка frontend-инструментов не требуются.
 
-Из корня репозитория:
+## Локальный запуск
 
-Если репозиторий ещё не скачан:
+### Windows / PowerShell
+
+Из корня репозитория, при первой настройке:
 
 ```powershell
 git clone https://github.com/bigstep832/cqa-hackathon.git
 cd cqa-hackathon
-```
-
-```powershell
-python -m venv .venv
+py -3.13 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock
-.\.venv\Scripts\python.exe scripts/export_contracts.py
-npm --prefix frontend ci
-npm --prefix frontend run generate:api
+npm.cmd --prefix frontend ci
 ```
 
-Первый терминал. Для работы с частными настройками создайте локальный `.env` по
-`.env.example` и добавьте к команде `--env-file .env`. Без настроек доступны
-ручной импорт, хранение, синтетический пример и его оценка. Используйте один процесс
-uvicorn с доступом только с локального компьютера. Тот же порядок применим в Linux/macOS.
+Если репозиторий уже скачан, пропустите clone и перейдите в его каталог.
+В первом терминале запустите backend одним процессом:
 
 ```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-Второй терминал:
+Во втором терминале, также из корня:
 
 ```powershell
-cd frontend
-npm run dev
+npm.cmd --prefix frontend run dev
 ```
 
-Адрес frontend смотрите в выводе Vite. Backend: `http://127.0.0.1:8000`,
-схема API: `http://127.0.0.1:8000/docs`.
-
-## Запуск в Linux / macOS
+### Linux / macOS
 
 ```bash
-python3 -m venv .venv
+python3.13 -m venv .venv
 .venv/bin/python -m pip install -r requirements.lock
-.venv/bin/python scripts/export_contracts.py
 npm --prefix frontend ci
-npm --prefix frontend run generate:api
 .venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-В другом терминале: `cd frontend`, затем `npm run dev`.
+В другом терминале из корня: `npm --prefix frontend run dev`.
+
+Frontend: [127.0.0.1:5173](http://127.0.0.1:5173).
+Backend: [127.0.0.1:8000](http://127.0.0.1:8000).
+Swagger: [/docs](http://127.0.0.1:8000/docs), проверка запуска: [/health](http://127.0.0.1:8000/health).
+Vite перенаправляет запросы `/api` и `/health` на backend.
+
+По умолчанию SQLite находится в `data/private/cqa.sqlite3`.
+Частные настройки задаются локально по [.env.example](.env.example);
+для их загрузки добавьте к команде uvicorn `--env-file .env`.
+Для синтетического демо ключ модели не нужен. Настройка live-режима описана
+в [контракте API](docs/API_CONTRACT.md) и [плане AI-оценивания](docs/AI_EVALUATION_PLAN.md).
+
+## Быстрая демонстрация без AI-запросов
+
+1. Откройте **«Демо · mock»**: встроенный синтетический результат — **85,38**.
+2. Посмотрите диаграмму и подробные критерии, откройте доказательство C01.
+3. Нажмите **«Оценить встроенный пример»**, выберите встроенный чек-лист и
+   режим mock. Дождитесь завершения задания.
+4. Подайте апелляцию по C01. При override на `false` с обязательной причиной
+   backend вернёт эффективный балл **70,00**, исходный останется **85,38**.
+5. Сравните исходные и эффективные полосы; перезагрузите страницу и проверьте
+   сохранённое решение.
+
+Встроенный mock работает только на поддерживаемой паре версий диалога и чек-листа.
+Ручной импорт произвольного JSON или новая версия рубрики не делают их допустимыми
+для встроенного mock. Отдельный раздел демо явно помечен
+**«Тестовые данные — не AI-оценка»**. Ошибка реального API не заменяется демо.
 
 ## Проверки
 
-После установки зависимостей, из корня:
+Команды ниже выполняются из корня репозитория после установки зависимостей.
+На Linux/macOS используйте `npm` вместо `npm.cmd` и `.venv/bin/python`
+вместо Windows-пути.
 
 ```powershell
-.\.venv\Scripts\python.exe scripts/verify.py
+npm.cmd --prefix frontend run typecheck
+npm.cmd --prefix frontend run lint
+npm.cmd --prefix frontend run test -- --maxWorkers=2
+npm.cmd --prefix frontend run build
+npm.cmd --prefix frontend run generate:api:check
 .\.venv\Scripts\python.exe scripts/export_contracts.py --check
-npm --prefix frontend run generate:api:check
 ```
 
-Для браузерного теста сначала запустите backend из раздела запуска. Playwright
-сам поднимает только Vite. На Windows с установленным Edge:
+Штатные браузерные тесты требуют запущенного FastAPI на порту 8000.
+Playwright сам запускает Vite или использует уже работающий dev-сервер:
 
 ```powershell
 $env:CQA_BROWSER_CHANNEL = 'msedge'
-npm --prefix frontend run test:e2e
+npm.cmd --prefix frontend run test:e2e -- --workers=2
+npm.cmd --prefix frontend run test:e2e:history
 ```
 
-На POSIX замените `.\.venv\Scripts\python.exe` на `.venv/bin/python`.
-`verify.py` объединяет ruff, mypy, pytest, проверку экспорта и frontend
-typecheck/lint/test/build. Playwright запускается отдельно и проверяет только
-экран demo и переход к evidence. Pytest проходит работу API с SQLite,
-перезапуск и апелляции. Состояние UI-приёмки отражено в [ACCEPTANCE](docs/ACCEPTANCE.md).
-Для Chromium выполните `cd frontend`, `npx playwright install chromium`, затем
-`npm run test:e2e` без переменной `CQA_BROWSER_CHANNEL`. В CI используется Chromium.
+Последняя команда запускает отдельные FastAPI и Vite на **8001/5174** и новую
+тестовую SQLite; эти порты должны быть свободны. Python берётся из корневой
+`.venv`, при необходимости путь задаётся через `CQA_TEST_PYTHON`.
+Подробности: [интеграционный сценарий истории](frontend/tests/integration/README.md).
+Для Chromium вместо Edge установите браузер командой
+`npm.cmd --prefix frontend exec -- playwright install chromium`
+и запускайте тесты без `CQA_BROWSER_CHANNEL`.
 
-## Mock и live
+Общий офлайн-прогон backend и frontend:
 
-Экран и результаты mock явно помечены: **«Тестовые данные — не AI-оценка»**.
-Mock обрабатывает только созданные командой synthetic fixtures.
-DEV/control никогда не заменяются готовыми ответами. Адаптеры A-01 проверены офлайн;
-реальные вызовы требуют утверждённого приватного плана и доступа к источнику. Отсутствие ключа
-или ошибка провайдера не переключает режим в mock.
+```powershell
+.\.venv\Scripts\python.exe scripts/verify.py
+```
 
-API-ключи и адрес организаторов вводятся локально по `.env.example`, не в браузере,
-Git или чате. Реальные данные — только `data/private/`, результаты —
-`artifacts/private/`; оба каталога исключены из Git. Исходные PDF не публикуются.
-Исключение — обязательная обезличенная итоговая выжимка по
-[RESULTS_SUBMISSION](docs/RESULTS_SUBMISSION.md): `results/dev/results.json` (65)
-и `results/prod/results.json` (10). Оба файла нужно commit + push до стоп-кода.
-Экспортёр и валидатор сверяют оценки с сохранёнными версиями, вызовами модели и
-составом группы. Для офлайн-репетиции запустите `python scripts/submission.py rehearse`.
+Он включает ruff, mypy, pytest, проверки контрактов, репетицию экспорта, проверки
+frontend и публичных файлов. Playwright запускается отдельно.
 
-Создан публичный репозиторий [bigstep832/cqa-hackathon](https://github.com/bigstep832/cqa-hackathon).
-История каркаса зафиксирована в отчёте bootstrap,
-текущий CI — во вкладке Actions. Live-бюджет 0 до согласования
-провайдера и разрешённой суммы. Команда **DT20**, стоп-код **08.11.2026, 12:00 по Астане**
-(подтверждено пользователем). См. [DECISIONS](docs/DECISIONS.md).
+### Последний локальный прогон frontend
 
-- [Первый task A](prompts/A_AI_LEAD.md): baseline и воспроизводимый eval.
-- [Первый task B](prompts/B_FRONTEND.md): карточка и API client.
-- [Первый task C](prompts/C_BACKEND_WORKFLOW.md): импорт и неизменяемые версии.
+8 ноября 2026 года, ветка `feat/b-dialogue-card`, база `e2e3343`
+и локальные изменения диаграммы:
+
+- typecheck, lint и build — успешно;
+- Vitest — **142/142**, включая 16 тестов диаграммы; финальный запуск с двумя workers;
+- Playwright Edge — **47/47**, отдельный сценарий истории — **1/1**;
+- проверены desktop и ширина 390 px.
+
+Разделение проверок:
+
+- **Настоящие FastAPI + SQLite:** синтетическое демо и апелляции confirm/override.
+- **Изолированный FastAPI + SQLite:** v1 → оценка → v2 → reload → история →
+  оценка v1 → evidence v1. Работают настоящие очередь, scorer и хранение,
+  но ответы источника и модели заменены синтетическими транспортами.
+- **Заглушки API:** пограничные состояния, ошибки, пагинация, дробные веса,
+  N/A и дополнительные критерии в unit-тестах и части Playwright-сценариев.
+
+Эти результаты относятся к локальной рабочей копии, а не к опубликованному CI.
+Внешний AI-провайдер, точность на Ground Truth и чистая установка на другом
+компьютере этим прогоном не подтверждены. Старые отчёты приёмки фиксируют
+состояние на указанных в них SHA и могут предшествовать истории B-04 и диаграмме.
+
+## Контракты и правила расчёта
+
+Канонический источник DTO — Pydantic. OpenAPI и TypeScript-типы генерируются;
+не редактируйте их вручную. После согласованного изменения DTO:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/export_contracts.py
+npm.cmd --prefix frontend run generate:api
+```
+
+Оцениваются действия оператора; бот и system остаются контекстом.
+Итог считает серверный domain scorer: N/A исключает вес из числителя и знаменателя,
+при нулевом знаменателе результат `null`. C08 — отдельный флаг без штрафа.
+Confidence не влияет на баллы. Диаграмма использует серверные начисленные баллы
+и веса; деление нужно только для длины полосы.
+
+Версии диалогов, чек-листов и исходные ответы неизменяемы. Апелляция хранится
+отдельно, а evidence всегда ведёт к оценённой версии. Ошибка провайдера
+или валидации означает failed, а не ноль, N/A или автоматический mock.
+
+## Данные, безопасность и сдача
+
+Локальный API предназначен для loopback и одного процесса uvicorn.
+Для работы вне локального компьютера требуется отдельно настроенный защищённый
+доступ: текущий workflow не заменяет аутентификацию и разграничение прав.
+
+API-ключи, подписанные URL, исходные DEV/control, аудио, SQLite и реальные traces
+не публикуются. Приватные входы хранятся в `data/private/`, артефакты —
+в `artifacts/private/`; оба каталога исключены из Git.
+Live-вызовы требуют согласованных прав передачи данных, провайдера, модели и бюджета.
+
+Исключение для официальной сдачи — проверенные обезличенные итоговые записи
+`results/dev/results.json` (65) и `results/prod/results.json` (10),
+без транскриптов, аудио и секретов. По правилам хакатона оба файла должны быть
+опубликованы до стоп-кода; наличие файлов само по себе не подтверждает корректную сдачу.
+Порядок экспорта, проверки и публикации:
+[RESULTS_SUBMISSION](docs/RESULTS_SUBMISSION.md), [EXPORT](docs/EXPORT.md).
+Этот README не является подтверждением отправки результатов.
+
+## Документация
+
+- [С чего начать](docs/START_HERE.md), [задачи команды](docs/TASKS.md).
+- [Архитектура](docs/ARCHITECTURE.md), [контракт API](docs/API_CONTRACT.md),
+  [правила scoring](docs/SCORING_SPEC.md).
+- [Дизайн frontend](frontend/DESIGN.md), [UI-спецификация](docs/UI_DESIGN.md).
+- [Приёмка](docs/ACCEPTANCE.md), [сценарий демо](docs/DEMO.md).
+- [Handoff backend](docs/C_BACKEND_HANDOFF.md), [AI: A-01](docs/A01_OFFLINE_HANDOFF.md),
+  [проверка качества: A-02](docs/A02_OFFLINE_HANDOFF.md).
+- [Разметка и evals](evals/README.md), [браузерный инструмент разметки](evals/REVIEW_APP.md).

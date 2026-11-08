@@ -30,6 +30,11 @@ test('FastAPI + SQLite: C01 override 85.38 → 70.00, C02 confirm, reload и evi
   await page.getByLabel('Причина решения C01').fill('Синтетическая учебная поправка: C01 = false');
   await page.getByRole('form', { name: 'Решение C01' }).getByRole('button', { name: 'Сохранить решение' }).click();
   await expect(page.getByTestId('effective-score')).toHaveText('70,00');
+  const chart = page.getByRole('region', { name: 'Баллы по критериям' });
+  await chart.getByRole('button', { name: 'Эффективные баллы' }).click();
+  await expect(chart.getByRole('meter', { name: /^C01/ })).toHaveAttribute('aria-valuenow', '0');
+  await chart.getByRole('button', { name: 'Исходные баллы' }).click();
+  await expect(chart.getByRole('meter', { name: /^C01/ })).toHaveAttribute('aria-valuenow', '10');
   await expect(page.getByTestId('total-score')).toHaveText('85,38');
   await page.getByLabel('Действие проверяющего C02').selectOption('confirm');
   await page.getByLabel('Причина решения C02').fill('Синтетическая проверка: исходный ответ C02 подтверждён');

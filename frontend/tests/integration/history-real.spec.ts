@@ -55,6 +55,7 @@ test('FastAPI + SQLite: v1 → evaluation → v2 → reload → history → evid
   await page.screenshot({ path: testInfo.outputPath('history-desktop.png'), fullPage: true });
   await history.getByRole('button', { name: /Открыть оценку/ }).click();
   await expect(page.getByRole('heading', { name: 'Сохранённая оценка' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Баллы по критериям' }).getByRole('meter', { name: /^C01/ })).toHaveAttribute('aria-valuenow', '10');
   await expect(page.getByTestId('total-score')).toHaveText('85,38');
   await expect(page.getByTestId('effective-score')).toHaveText('85,38');
   const evidence = page.getByRole('button', { name: 'Показать доказательство C01' });

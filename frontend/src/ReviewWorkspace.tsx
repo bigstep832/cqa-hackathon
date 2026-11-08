@@ -3,6 +3,7 @@ import type { components } from './api/generated/schema';
 import type { EvaluationResult } from './api/evaluation';
 import { formatDecimal, formatWeight } from './format';
 import { ConversationAudio } from './ConversationAudio';
+import { EvaluationCriteriaChart } from './EvaluationCriteriaChart';
 
 type Evidence = components['schemas']['EvidenceRef'];
 const speakerLabels: Record<string, string> = {
@@ -75,6 +76,7 @@ export function ReviewWorkspace({ data, renderAppeal }: { data: EvaluationResult
       </div>
     </section>
     </div>
+    <EvaluationCriteriaChart checklist={checklist} evaluation={evaluation} />
     <p className="result-provenance">Ниже — исходные ответы, пояснения и доказательства. Версия чек-листа: {checklist.id}.</p>
     <div className="review-grid">
       <section className="panel transcript-panel" aria-labelledby="transcript-heading">
