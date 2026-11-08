@@ -24,7 +24,7 @@ app.add_middleware(RequestBoundary)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=sorted(LOCAL_ORIGINS),
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["Content-Type", "Idempotency-Key"],
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost"])

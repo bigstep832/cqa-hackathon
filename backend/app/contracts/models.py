@@ -208,12 +208,33 @@ class SourceMessage(FrozenModel):
     text: Annotated[str, Field(min_length=1)]
 
 
+OperatorId: TypeAlias = Annotated[
+    str, StringConstraints(min_length=1, max_length=80, pattern=r"^[\p{L}\p{N}][\p{L}\p{M}\p{N}._-]*$")
+]
+
+
+class OperatorAssignment(FrozenModel):
+    operator_id: OperatorId | None = None
+    outcome: Literal["successful", "unsuccessful"] | None = None
+    duration_seconds: Annotated[int, Field(strict=True, ge=0, le=2147483647)] | None = None
+
+    def valid_for(self, channel: Channel) -> bool:
+        return channel == "voice call" or (self.duration_seconds is None and self.outcome is None)
+
+
 class SourceConversation(FrozenModel):
     conversation_id: NonEmpty
     channel: Channel
     language: Language
     transcript: Annotated[tuple[SourceMessage, ...], Field(min_length=1)]
     audio_url: AnyHttpUrl | None = None
+    operator: OperatorAssignment | None = None
+
+    @model_validator(mode="after")
+    def validate_call_facts(self) -> SourceConversation:
+        if self.operator is not None and not self.operator.valid_for(self.channel):
+            raise ValueError("Call duration and outcome require a voice call")
+        return self
 
 
 class DatasetImportRequest(FrozenModel):
