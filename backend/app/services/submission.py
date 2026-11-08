@@ -32,6 +32,7 @@ from app.contracts.models import (
 from app.domain.scoring import score
 from app.domain.snapshots import checklist_content_hash, conversation_content_hash
 from app.evaluation.validation import validate_output
+from app.services.submission_redaction import ReviewedRationaleRedaction, redact_rationale
 from app.storage.workflow import DispatchAttempt
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -85,6 +86,7 @@ class ReleaseSelection(FrozenModel):
     group_id: NonEmpty
     team_name: StrictStr
     jobs: dict[NonEmpty, NonEmpty | None]
+    rationale_redactions: tuple[ReviewedRationaleRedaction, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -141,6 +143,7 @@ def _failure_text(job: Evaluation) -> str:
 def _result(
     conversation: ConversationVersion, checklist: ChecklistVersion, selected: SelectedJob,
     *, pending_at_cutoff: bool, rehearsal: bool,
+    redactions: dict[str, ReviewedRationaleRedaction] | None = None,
 ) -> dict[str, Any]:
     job, req = selected.evaluation, selected.request
     if (job.conversation_version_id != conversation.id or req.conversation_version_id != conversation.id
@@ -181,7 +184,13 @@ def _result(
             value = int(value)
         evidence = {turn for ref in answer.evidence
                     for turn in range(positions[ref.start_message_id], positions[ref.end_message_id] + 1)}
-        rationale = _public_rationale(answer.explanation)
+        explanation = answer.explanation
+        if redactions and internal in redactions:
+            try:
+                explanation = redact_rationale(explanation, redactions[internal])
+            except ValueError:
+                raise SubmissionError("Rationale review does not match the original explanation.") from None
+        rationale = _public_rationale(explanation)
         normalized = rationale.casefold()
         if (any(part in normalized for part in substantial_text)
                 or len(complete_transcript) >= 30 and complete_transcript in normalized):
@@ -190,6 +199,40 @@ def _result(
                          "rationale": rationale, "evidence_turns": sorted(evidence)})
     return {"conversation_id": conversation.conversation_id, "status": "ok", "criteria": criteria,
             "score": {"final_score": float(original.total), "critical_flag": "C08" in original.flags}}
+
+
+def validated_rationale_reviews(
+    selection: ReleaseSelection, jobs: dict[str, SelectedJob],
+    cutoff: dict[str, tuple[ProviderCall | DispatchAttempt, ...]] | None = None,
+) -> dict[str, dict[str, ReviewedRationaleRedaction]]:
+    """Bind explicit reviews to selected immutable answers before any public write."""
+    redactions: dict[str, dict[str, ReviewedRationaleRedaction]] = {}
+    for raw_review in selection.rationale_redactions:
+        # Revalidate model_copy and mutable nested containers as well as CLI JSON.
+        review = ReviewedRationaleRedaction.model_validate(raw_review.model_dump())
+        if review.evaluation_id not in jobs:
+            raise SubmissionError("Rationale review belongs to an unselected job.")
+        selected = jobs[review.evaluation_id]
+        if (selected.evaluation.id != review.evaluation_id
+                or selection.jobs.get(selected.evaluation.conversation_version_id) != review.evaluation_id):
+            raise SubmissionError("Rationale review belongs to a different selected snapshot.")
+        if selected.evaluation.status != "succeeded" or (
+            cutoff is not None and review.evaluation_id in cutoff
+        ):
+            raise SubmissionError("Only a completed successful row can have a rationale review.")
+        by_criterion = redactions.setdefault(review.evaluation_id, {})
+        if review.criterion_id in by_criterion:
+            raise SubmissionError("Duplicate rationale review for the same job and criterion.")
+        assert selected.evaluation.output is not None
+        answers = {a.criterion_id: a for a in selected.evaluation.output.answers}
+        if review.criterion_id not in answers:
+            raise SubmissionError("Rationale review references an absent criterion.")
+        try:
+            _public_rationale(redact_rationale(answers[review.criterion_id].explanation, review))
+        except ValueError:
+            raise SubmissionError("Rationale review does not match a safe original explanation.") from None
+        by_criterion[review.criterion_id] = review
+    return redactions
 
 
 def build_submission(
@@ -214,6 +257,7 @@ def build_submission(
         raise SubmissionError("Duplicate, missing or unexpected job.")
     if cutoff is not None and cutoff.keys() - jobs.keys():
         raise SubmissionError("Cutoff belongs to different jobs.")
+    redactions = validated_rationale_reviews(selection, jobs, cutoff)
     models: set[tuple[str, str]] = set()
     rows = []
     for c in conversations:
@@ -243,7 +287,8 @@ def build_submission(
             ):
                 raise SubmissionError("The recorded evaluation call differs from the requested model.")
             models.add((call.provider, _public_text(call.model)))
-        rows.append(_result(c, checklist, job, pending_at_cutoff=pending_at_cutoff, rehearsal=rehearsal))
+        rows.append(_result(c, checklist, job, pending_at_cutoff=pending_at_cutoff, rehearsal=rehearsal,
+                            redactions=redactions.get(job_id)))
     if rehearsal:
         mode, name = "local", "fixture/synthetic-v1 (offline rehearsal)"
     else:
