@@ -26,11 +26,12 @@ import httpx
 from app.contracts.models import EvaluationInput, EvaluationMetadata, EvaluationOutput, ProviderCall
 from app.evaluation.provider import ProviderExecutionError
 from app.evaluation.structured import (
-    INSTRUCTION_VERSION,
+    InstructionProfile,
     StructuredOutputError,
     build_response_schema,
     build_system_instruction,
     build_user_payload,
+    instruction_version,
     parse_model_response,
     validate_evaluation_input,
 )
@@ -47,8 +48,10 @@ class GeminiConfig:
     max_input_bytes: int = 200_000
     max_response_bytes: int = 2_000_000
     retry_delay_seconds: float = 0.25
+    instruction_profile: InstructionProfile = "cqa-rubric-v1"
 
     def __post_init__(self) -> None:
+        instruction_version(self.instruction_profile)
         if (
             not isinstance(self.api_key, str) or not self.api_key or not self.api_key.isascii()
             or any(character.isspace() or ord(character) < 32 for character in self.api_key)
@@ -78,10 +81,15 @@ class _ResponseTooLarge(Exception):
         self.status_code = status_code
 
 
-def build_gemini_request(evaluation_input: EvaluationInput, max_output_tokens: int) -> dict[str, Any]:
+def build_gemini_request(
+    evaluation_input: EvaluationInput, max_output_tokens: int,
+    *, instruction_profile: InstructionProfile = "cqa-rubric-v1",
+) -> dict[str, Any]:
     """Request без секретов; API key передаётся отдельно только в HTTP header."""
     return {
-        "systemInstruction": {"parts": [{"text": build_system_instruction(evaluation_input)}]},
+        "systemInstruction": {"parts": [{"text": build_system_instruction(
+            evaluation_input, profile=instruction_profile,
+        )}]},
         "contents": [{"role": "user", "parts": [{"text": build_user_payload(evaluation_input)}]}],
         "generationConfig": {
             # The default is one candidate. Newer Gemini models reject this
@@ -180,7 +188,8 @@ class GeminiEvaluationProvider:
         if not MODEL_ID_PATTERN.fullmatch(evaluation_input.settings.model):
             raise GeminiProviderError("INVALID_INPUT", "Gemini requires a bare model ID")
         payload = json.dumps(
-            build_gemini_request(evaluation_input, self.config.max_output_tokens),
+            build_gemini_request(evaluation_input, self.config.max_output_tokens,
+                                 instruction_profile=self.config.instruction_profile),
             ensure_ascii=False, separators=(",", ":"), allow_nan=False,
         ).encode("utf-8")
         if len(payload) > self.config.max_input_bytes:
@@ -264,7 +273,7 @@ class GeminiEvaluationProvider:
                 text = _extract_text(outer)
                 metadata = EvaluationMetadata(
                     mode="live", provider="gemini", model=evaluation_input.settings.model,
-                    instruction_version=INSTRUCTION_VERSION,
+                    instruction_version=instruction_version(self.config.instruction_profile),
                     pipeline_version="gemini-rest-v2", calls=tuple(calls),
                 )
                 return parse_model_response(text, evaluation_input, metadata)

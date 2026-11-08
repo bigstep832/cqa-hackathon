@@ -1,3 +1,4 @@
+import hashlib
 import json
 from decimal import Decimal
 
@@ -7,6 +8,8 @@ from app.contracts.models import EvaluationInput, EvaluationMetadata
 from app.domain.scoring import score
 from app.evaluation.demo import load_synthetic_answers, load_synthetic_input
 from app.evaluation.structured import (
+    SYSTEM_INSTRUCTION,
+    InstructionProfile,
     StructuredOutputError,
     build_response_schema,
     build_system_instruction,
@@ -45,7 +48,8 @@ def test_shared_parser_rebinds_snapshot_and_accepts_dynamic_contract() -> None:
     assert output.answers[0].evidence[0].conversation_version_id == evaluation_input.conversation.id
 
 
-def test_schema_and_system_prompt_include_actual_custom_criterion() -> None:
+@pytest.mark.parametrize("profile", ["cqa-rubric-v1", "cqa-rubric-v4-candidate"])
+def test_schema_and_system_prompt_include_actual_custom_criterion(profile: InstructionProfile) -> None:
     raw = live_input().model_dump(mode="json")
     custom = raw["checklist"]["criteria"][0].copy()
     custom.update(id="custom-new", title="Новый критерий", answer_type="choice", options=[
@@ -58,9 +62,31 @@ def test_schema_and_system_prompt_include_actual_custom_criterion() -> None:
     answer_schema = schema["properties"]["answers"]["properties"]
     assert "custom-new" in schema["properties"]["answers"]["required"]
     assert answer_schema["custom-new"]["properties"]["answer"]["properties"]["value"]["enum"] == ["partial"]
-    assert "Специальная новая ступень" in build_system_instruction(evaluation_input)
+    instruction = build_system_instruction(evaluation_input, profile=profile)
+    assert "Специальная новая ступень" in instruction
+    rubric_json = instruction.split("\nАвторитетная конфигурация рубрики:\n", 1)[1]
+    assert json.loads(rubric_json) == evaluation_input.checklist.model_dump(
+        mode="json", include={"name", "sections", "criteria"},
+    )
     assert "anyOf" in answer_schema["C02"]["properties"]["answer"]
     assert "anyOf" not in answer_schema["C01"]["properties"]["answer"]
+
+
+def test_baseline_instruction_remains_reproducible_and_default() -> None:
+    # Hash of the instruction used in the recorded baseline, before candidate work.
+    assert hashlib.sha256(SYSTEM_INSTRUCTION.encode()).hexdigest() == (
+        "5360d82eb18e5971d963009f1fb65874c8443ad74d52203f4fd8e208e42764d3"
+    )
+    case = live_input()
+    assert build_system_instruction(case) == build_system_instruction(case, profile="cqa-rubric-v1")
+    assert build_system_instruction(case) != build_system_instruction(
+        case, profile="cqa-rubric-v4-candidate",
+    )
+
+
+def test_unknown_instruction_profile_fails_instead_of_falling_back() -> None:
+    with pytest.raises(ValueError, match="Unknown instruction profile"):
+        build_system_instruction(live_input(), profile="typo")  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("value", ["частично выполнено", "жартылай орындалды", "partially  done"])

@@ -23,11 +23,12 @@ import httpx
 from app.contracts.models import EvaluationInput, EvaluationMetadata, EvaluationOutput, ProviderCall
 from app.evaluation.provider import ProviderExecutionError
 from app.evaluation.structured import (
-    INSTRUCTION_VERSION,
+    InstructionProfile,
     StructuredOutputError,
     build_response_schema,
     build_system_instruction,
     build_user_payload,
+    instruction_version,
     parse_model_response,
     validate_evaluation_input,
 )
@@ -50,8 +51,10 @@ class OpenAICompatibleConfig:
     max_input_bytes: int = 200_000
     max_response_bytes: int = 2_000_000
     retry_delay_seconds: float = 0.25
+    instruction_profile: InstructionProfile = "cqa-rubric-v1"
 
     def __post_init__(self) -> None:
+        instruction_version(self.instruction_profile)
         if self.provider not in {"openai", "groq", "local"}:
             raise ValueError("Unsupported provider")
         if type(self.max_attempts) is not int or not 1 <= self.max_attempts <= 3:
@@ -174,7 +177,7 @@ class OpenAICompatibleEvaluationProvider:
         try:
             validated = validate_evaluation_input(evaluation_input, self.config.provider)
             schema = build_response_schema(validated.checklist)
-            instruction = build_system_instruction(validated)
+            instruction = build_system_instruction(validated, profile=self.config.instruction_profile)
             if self.config.response_format == "json_object":
                 instruction += "\nReturn a JSON object satisfying this schema:\n" + json.dumps(
                     schema, ensure_ascii=False, separators=(",", ":"), allow_nan=False
@@ -267,7 +270,7 @@ class OpenAICompatibleEvaluationProvider:
                     text = _response_text(response)
                     metadata = EvaluationMetadata(
                         mode="live", provider=self.config.provider, model=evaluation_input.settings.model,
-                        instruction_version=INSTRUCTION_VERSION,
+                        instruction_version=instruction_version(self.config.instruction_profile),
                         pipeline_version=(GROQ_PIPELINE_VERSION if self.config.provider == "groq"
                                           else PIPELINE_VERSION),
                         calls=tuple(calls),

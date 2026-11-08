@@ -8,6 +8,7 @@ import httpx
 
 from app.contracts.models import ProviderCall
 from app.evaluation.provider import EvaluationProvider
+from app.evaluation.structured import InstructionProfile, instruction_version
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -20,6 +21,7 @@ class ProviderConfig:
     max_output_tokens: int = 8192
     max_input_bytes: int = 200_000
     max_response_bytes: int = 2_000_000
+    instruction_profile: InstructionProfile = "cqa-rubric-v1"
 
 
 def create_provider(
@@ -36,9 +38,12 @@ def create_provider(
     Разрешение live/бюджет проверяет вызывающий workflow или отдельный eval runner.
     """
     config = config or ProviderConfig()
+    instruction_version(config.instruction_profile)
     if config.provider != "local" and config.local_base_url is not None:
         raise ValueError("Custom endpoint is allowed only for local models")
     if config.provider == "fixture":
+        if config.instruction_profile != "cqa-rubric-v1":
+            raise ValueError("A prompt candidate requires a live provider, not a fixture")
         from app.evaluation.mock import MockEvaluationProvider
 
         return MockEvaluationProvider()
@@ -51,6 +56,7 @@ def create_provider(
                 max_output_tokens=config.max_output_tokens,
                 max_input_bytes=config.max_input_bytes,
                 max_response_bytes=config.max_response_bytes,
+                instruction_profile=config.instruction_profile,
             ),
             client=client, on_attempt=on_attempt, on_call=on_call,
         )
@@ -68,6 +74,7 @@ def create_provider(
                 max_attempts=config.max_attempts, max_output_tokens=config.max_output_tokens,
                 max_input_bytes=config.max_input_bytes,
                 max_response_bytes=config.max_response_bytes,
+                instruction_profile=config.instruction_profile,
             ),
             client=client, on_attempt=on_attempt, on_call=on_call,
         )
